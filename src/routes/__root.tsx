@@ -9,8 +9,12 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
+import { Toaster } from "sonner";
+
 import appCss from "../styles.css?url";
+import { AuthProvider } from "../lib/auth";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+
 
 function NotFoundComponent() {
   return (
@@ -77,16 +81,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "MindLink — Meet the AI behind people you trust" },
+      {
+        name: "description",
+        content:
+          "Chat and talk with AI characters built from the approved knowledge of creators, coaches and experts you already trust.",
+      },
+      { name: "author", content: "MindLink" },
+      { property: "og:title", content: "MindLink — Meet the AI behind people you trust" },
+      {
+        property: "og:description",
+        content: "An AI-powered personal-brand interaction marketplace for creators and their audiences.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
+      },
       {
         rel: "stylesheet",
         href: appCss,
@@ -94,6 +111,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
+
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -119,8 +137,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <AuthProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <Toaster position="top-center" richColors />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
+
