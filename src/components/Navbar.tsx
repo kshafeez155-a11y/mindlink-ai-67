@@ -8,14 +8,14 @@ import rahul from "@/assets/creator-rahul.jpg";
 
 const links = [
   { label: "Discover", to: "/explore" as const },
-  { label: "Creators", to: "/explore" as const },
-  { label: "Categories", to: "/explore" as const },
+  { label: "Creators", to: "/explore" as const, search: { view: "creators" as const } },
+  { label: "Categories", to: "/explore" as const, search: { category: "All" as const } },
   { label: "For Creators", to: "/creator/onboarding" as const },
 ];
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
-  const { user, signIn } = useAuth();
+  const { user, loading, signOut } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-background/85 backdrop-blur-xl">
@@ -27,6 +27,7 @@ export function Navbar() {
               <Link
                 key={l.label}
                 to={l.to}
+                search={l.search}
                 className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 activeProps={{ className: "text-primary" }}
               >
@@ -42,7 +43,9 @@ export function Navbar() {
               <Search className="h-4.5 w-4.5" />
             </Button>
           </Link>
-          {user ? (
+          {loading ? (
+            <span className="px-3 text-sm text-muted-foreground">Loading...</span>
+          ) : user ? (
             <>
               <Link to="/creator/dashboard">
                 <Button variant="outline" size="sm">
@@ -54,9 +57,12 @@ export function Navbar() {
                   <Settings className="h-4.5 w-4.5" />
                 </Button>
               </Link>
+              <Button variant="ghost" size="sm" onClick={() => void signOut()}>
+                Sign Out
+              </Button>
               <img
                 src={rahul}
-                alt={user.name}
+                alt={user.email ?? "Account"}
                 className="h-9 w-9 rounded-full object-cover object-top ring-2 ring-primary/25"
               />
             </>
@@ -68,9 +74,7 @@ export function Navbar() {
                 </Button>
               </Link>
               <Link to="/signup">
-                <Button size="sm" onClick={() => signIn()}>
-                  Get Started
-                </Button>
+                <Button size="sm">Get Started</Button>
               </Link>
             </>
           )}
@@ -92,6 +96,7 @@ export function Navbar() {
               <Link
                 key={l.label}
                 to={l.to}
+                search={l.search}
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
               >
@@ -100,10 +105,17 @@ export function Navbar() {
             ))}
           </nav>
           <div className="mt-4 grid gap-2">
-            {user ? (
-              <Link to="/creator/dashboard" onClick={() => setOpen(false)}>
-                <Button className="w-full">Dashboard</Button>
-              </Link>
+            {loading ? (
+              <span className="px-3 py-2 text-sm text-muted-foreground">Loading...</span>
+            ) : user ? (
+              <>
+                <Link to="/creator/dashboard" onClick={() => setOpen(false)}>
+                  <Button className="w-full">Dashboard</Button>
+                </Link>
+                <Button variant="outline" className="w-full" onClick={() => void signOut()}>
+                  Sign Out
+                </Button>
+              </>
             ) : (
               <>
                 <Link to="/login" onClick={() => setOpen(false)}>

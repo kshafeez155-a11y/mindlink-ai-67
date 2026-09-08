@@ -44,15 +44,17 @@ function Profile() {
           </div>
 
           <div className="relative px-5 pb-6 sm:px-8">
-            <div className="-mt-14 flex flex-col gap-5 sm:-mt-16 sm:flex-row sm:items-end">
-              <img
-                src={character.photo}
-                alt={character.creatorName}
-                width={640}
-                height={640}
-                className="h-28 w-28 shrink-0 rounded-3xl border-4 border-card object-cover object-top shadow-lift sm:h-36 sm:w-36"
-              />
-              <div className="min-w-0 flex-1 pb-1">
+            <div className="grid gap-5 pt-6 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-end">
+              <div className="-mt-20 sm:-mt-24">
+                <img
+                  src={character.photo}
+                  alt={character.creatorName}
+                  width={640}
+                  height={640}
+                  className="h-28 w-28 shrink-0 rounded-3xl border-4 border-card object-cover object-top shadow-lift sm:h-36 sm:w-36"
+                />
+              </div>
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3">
                   <h1 className="text-2xl font-bold sm:text-3xl">{character.characterName}</h1>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-xs font-semibold text-success">
@@ -100,8 +102,8 @@ function Profile() {
         </Card>
 
         {/* BODY */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <Card className="p-5 sm:p-7">
+        <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <Card className="min-w-0 p-5 sm:p-7">
             <Tabs tabs={["About", "Popular Questions", "Reviews"]} active={tab} onChange={setTab} />
 
             {tab === "About" ? (
@@ -156,7 +158,7 @@ function Profile() {
             ) : null}
           </Card>
 
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <Card className="p-5">
               <p className="font-semibold">Connect with {character.creatorName.split(" ")[0]}</p>
               <div className="mt-4 space-y-2">

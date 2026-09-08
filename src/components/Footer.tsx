@@ -71,7 +71,7 @@ export function Footer() {
         ))}
       </div>
       <div className="border-t border-border px-4 py-5 text-center text-xs text-muted-foreground sm:px-6">
-        © 2026 MindLink. Demo product with fictional creator profiles.
+        © 2026 MindLink. Meet the AI behind people you trust.
       </div>
     </footer>
   );

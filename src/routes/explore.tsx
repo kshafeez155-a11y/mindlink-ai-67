@@ -1,21 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import {
-  Bookmark,
-  Compass,
-  Grid3x3,
-  Home,
-  Search,
-  Settings,
-  TrendingUp,
-  UserPlus,
-} from "lucide-react";
-import { DashShell, type NavItem } from "@/components/DashShell";
+import { Search } from "lucide-react";
 import { CharacterCard, CreatorRow } from "@/components/CharacterCard";
+import { SiteLayout } from "@/components/SiteLayout";
 import { Button, Pill } from "@/components/ui/primitives";
 import { categories, characters } from "@/data/mock";
+import { z } from "zod";
 
 export const Route = createFileRoute("/explore")({
+  validateSearch: z.object({
+    category: z.string().optional(),
+    view: z.enum(["creators"]).optional(),
+  }),
   head: () => ({
     meta: [
       { title: "Explore AI Characters — MindLink" },
@@ -33,20 +29,10 @@ export const Route = createFileRoute("/explore")({
 const sorts = ["Trending", "Popular", "New", "Most conversations"] as const;
 
 function Explore() {
+  const search = Route.useSearch();
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("All");
+  const [category, setCategory] = useState(search.category ?? "All");
   const [sort, setSort] = useState<(typeof sorts)[number]>("Trending");
-  const [section, setSection] = useState("Explore");
-
-  const nav: NavItem[] = [
-    { label: "Home", icon: Home, to: "/" },
-    { label: "Explore", icon: Compass, active: section === "Explore", onClick: () => setSection("Explore") },
-    { label: "Trending", icon: TrendingUp, active: section === "Trending", onClick: () => setSection("Trending") },
-    { label: "Following", icon: UserPlus, active: section === "Following", onClick: () => setSection("Following") },
-    { label: "Categories", icon: Grid3x3, active: section === "Categories", onClick: () => setSection("Categories") },
-    { label: "Saved", icon: Bookmark, active: section === "Saved", onClick: () => setSection("Saved") },
-    { label: "Settings", icon: Settings, to: "/creator/settings" },
-  ];
 
   const results = useMemo(() => {
     let list = characters.filter((c) => {
@@ -61,9 +47,6 @@ function Explore() {
       return matchesQuery && matchesCategory;
     });
 
-    if (section === "Following") list = list.filter((c) => c.online);
-    if (section === "Saved") list = list.slice(0, 2);
-
     const sorted = [...list];
     if (sort === "Trending") sorted.sort((a, b) => b.trending - a.trending);
     if (sort === "Popular") sorted.sort((a, b) => b.rating - a.rating);
@@ -71,14 +54,14 @@ function Explore() {
     if (sort === "Most conversations")
       sorted.sort((a, b) => parseFloat(b.conversations) - parseFloat(a.conversations));
     return sorted;
-  }, [query, category, sort, section]);
+  }, [query, category, sort]);
 
   const trending = results.slice(0, 3);
   const featured = results.slice(0, 4);
 
   return (
-    <DashShell items={nav}>
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-10">
+    <SiteLayout>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
         <h1 className="text-3xl font-bold sm:text-4xl">Explore AI Characters</h1>
         <p className="mt-2 text-muted-foreground">
           Find your favorite creators, experts and thought leaders.
@@ -134,16 +117,16 @@ function Explore() {
         ) : (
           <>
             <div className="mt-12 flex items-center justify-between">
-              <h2 className="text-xl font-bold">{section === "Saved" ? "Saved" : "Trending Now"}</h2>
+              <h2 className="text-xl font-bold">{search.view === "creators" ? "Featured Creators" : "Trending Now"}</h2>
               <span className="text-sm text-muted-foreground">{results.length} characters</span>
             </div>
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-5 grid auto-rows-fr gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {trending.map((c) => (
                 <CharacterCard key={c.id} character={c} />
               ))}
             </div>
 
-            <h2 className="mt-14 text-xl font-bold">Featured Creators</h2>
+            <h2 className="mt-14 text-xl font-bold">{search.view === "creators" ? "All AI Characters" : "Featured Creators"}</h2>
             <div className="mt-5 space-y-3">
               {featured.map((c) => (
                 <CreatorRow key={c.id} character={c} />
@@ -152,6 +135,6 @@ function Explore() {
           </>
         )}
       </div>
-    </DashShell>
+    </SiteLayout>
   );
 }

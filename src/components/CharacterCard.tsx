@@ -5,7 +5,7 @@ import { Button, StatusIndicator } from "@/components/ui/primitives";
 
 export function CharacterCard({ character }: { character: Character }) {
   return (
-    <div className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+    <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
       <Link
         to="/character/$id"
         params={{ id: character.id }}

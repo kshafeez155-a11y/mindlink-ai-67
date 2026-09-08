@@ -11,7 +11,20 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as CharacterIdRouteImport } from './routes/character.$id'
+import { Route as ChatIdRouteImport } from './routes/chat.$id'
+import { Route as CreatorAnalyticsRouteImport } from './routes/creator/analytics'
+import { Route as CreatorCharacterRouteImport } from './routes/creator/character'
+import { Route as CreatorConversationsRouteImport } from './routes/creator/conversations'
+import { Route as CreatorDashboardRouteImport } from './routes/creator/dashboard'
+import { Route as CreatorEarningsRouteImport } from './routes/creator/earnings'
+import { Route as CreatorKnowledgeRouteImport } from './routes/creator/knowledge'
+import { Route as CreatorOnboardingRouteImport } from './routes/creator/onboarding'
+import { Route as CreatorSettingsRouteImport } from './routes/creator/settings'
+import { Route as VoiceIdRouteImport } from './routes/voice.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,40 +36,206 @@ const ExploreRoute = ExploreRouteImport.update({
   path: '/explore',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CharacterIdRoute = CharacterIdRouteImport.update({
   id: '/character/$id',
   path: '/character/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatIdRoute = ChatIdRouteImport.update({
+  id: '/chat/$id',
+  path: '/chat/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorAnalyticsRoute = CreatorAnalyticsRouteImport.update({
+  id: '/creator/analytics',
+  path: '/creator/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorCharacterRoute = CreatorCharacterRouteImport.update({
+  id: '/creator/character',
+  path: '/creator/character',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorConversationsRoute = CreatorConversationsRouteImport.update({
+  id: '/creator/conversations',
+  path: '/creator/conversations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorDashboardRoute = CreatorDashboardRouteImport.update({
+  id: '/creator/dashboard',
+  path: '/creator/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorEarningsRoute = CreatorEarningsRouteImport.update({
+  id: '/creator/earnings',
+  path: '/creator/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorKnowledgeRoute = CreatorKnowledgeRouteImport.update({
+  id: '/creator/knowledge',
+  path: '/creator/knowledge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorOnboardingRoute = CreatorOnboardingRouteImport.update({
+  id: '/creator/onboarding',
+  path: '/creator/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorSettingsRoute = CreatorSettingsRouteImport.update({
+  id: '/creator/settings',
+  path: '/creator/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VoiceIdRoute = VoiceIdRouteImport.update({
+  id: '/voice/$id',
+  path: '/voice/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/explore': typeof ExploreRoute
+  '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
+  '/signup': typeof SignupRoute
   '/character/$id': typeof CharacterIdRoute
+  '/chat/$id': typeof ChatIdRoute
+  '/creator/analytics': typeof CreatorAnalyticsRoute
+  '/creator/character': typeof CreatorCharacterRoute
+  '/creator/conversations': typeof CreatorConversationsRoute
+  '/creator/dashboard': typeof CreatorDashboardRoute
+  '/creator/earnings': typeof CreatorEarningsRoute
+  '/creator/knowledge': typeof CreatorKnowledgeRoute
+  '/creator/onboarding': typeof CreatorOnboardingRoute
+  '/creator/settings': typeof CreatorSettingsRoute
+  '/voice/$id': typeof VoiceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/explore': typeof ExploreRoute
+  '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
+  '/signup': typeof SignupRoute
   '/character/$id': typeof CharacterIdRoute
+  '/chat/$id': typeof ChatIdRoute
+  '/creator/analytics': typeof CreatorAnalyticsRoute
+  '/creator/character': typeof CreatorCharacterRoute
+  '/creator/conversations': typeof CreatorConversationsRoute
+  '/creator/dashboard': typeof CreatorDashboardRoute
+  '/creator/earnings': typeof CreatorEarningsRoute
+  '/creator/knowledge': typeof CreatorKnowledgeRoute
+  '/creator/onboarding': typeof CreatorOnboardingRoute
+  '/creator/settings': typeof CreatorSettingsRoute
+  '/voice/$id': typeof VoiceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/explore': typeof ExploreRoute
+  '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
+  '/signup': typeof SignupRoute
   '/character/$id': typeof CharacterIdRoute
+  '/chat/$id': typeof ChatIdRoute
+  '/creator/analytics': typeof CreatorAnalyticsRoute
+  '/creator/character': typeof CreatorCharacterRoute
+  '/creator/conversations': typeof CreatorConversationsRoute
+  '/creator/dashboard': typeof CreatorDashboardRoute
+  '/creator/earnings': typeof CreatorEarningsRoute
+  '/creator/knowledge': typeof CreatorKnowledgeRoute
+  '/creator/onboarding': typeof CreatorOnboardingRoute
+  '/creator/settings': typeof CreatorSettingsRoute
+  '/voice/$id': typeof VoiceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/explore' | '/character/$id'
+  fullPaths:
+    | '/'
+    | '/explore'
+    | '/login'
+    | '/pricing'
+    | '/signup'
+    | '/character/$id'
+    | '/chat/$id'
+    | '/creator/analytics'
+    | '/creator/character'
+    | '/creator/conversations'
+    | '/creator/dashboard'
+    | '/creator/earnings'
+    | '/creator/knowledge'
+    | '/creator/onboarding'
+    | '/creator/settings'
+    | '/voice/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/explore' | '/character/$id'
-  id: '__root__' | '/' | '/explore' | '/character/$id'
+  to:
+    | '/'
+    | '/explore'
+    | '/login'
+    | '/pricing'
+    | '/signup'
+    | '/character/$id'
+    | '/chat/$id'
+    | '/creator/analytics'
+    | '/creator/character'
+    | '/creator/conversations'
+    | '/creator/dashboard'
+    | '/creator/earnings'
+    | '/creator/knowledge'
+    | '/creator/onboarding'
+    | '/creator/settings'
+    | '/voice/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/explore'
+    | '/login'
+    | '/pricing'
+    | '/signup'
+    | '/character/$id'
+    | '/chat/$id'
+    | '/creator/analytics'
+    | '/creator/character'
+    | '/creator/conversations'
+    | '/creator/dashboard'
+    | '/creator/earnings'
+    | '/creator/knowledge'
+    | '/creator/onboarding'
+    | '/creator/settings'
+    | '/voice/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ExploreRoute: typeof ExploreRoute
+  LoginRoute: typeof LoginRoute
+  PricingRoute: typeof PricingRoute
+  SignupRoute: typeof SignupRoute
   CharacterIdRoute: typeof CharacterIdRoute
+  ChatIdRoute: typeof ChatIdRoute
+  CreatorAnalyticsRoute: typeof CreatorAnalyticsRoute
+  CreatorCharacterRoute: typeof CreatorCharacterRoute
+  CreatorConversationsRoute: typeof CreatorConversationsRoute
+  CreatorDashboardRoute: typeof CreatorDashboardRoute
+  CreatorEarningsRoute: typeof CreatorEarningsRoute
+  CreatorKnowledgeRoute: typeof CreatorKnowledgeRoute
+  CreatorOnboardingRoute: typeof CreatorOnboardingRoute
+  CreatorSettingsRoute: typeof CreatorSettingsRoute
+  VoiceIdRoute: typeof VoiceIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +254,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExploreRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/character/$id': {
       id: '/character/$id'
       path: '/character/$id'
       fullPath: '/character/$id'
       preLoaderRoute: typeof CharacterIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat/$id': {
+      id: '/chat/$id'
+      path: '/chat/$id'
+      fullPath: '/chat/$id'
+      preLoaderRoute: typeof ChatIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/analytics': {
+      id: '/creator/analytics'
+      path: '/creator/analytics'
+      fullPath: '/creator/analytics'
+      preLoaderRoute: typeof CreatorAnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/character': {
+      id: '/creator/character'
+      path: '/creator/character'
+      fullPath: '/creator/character'
+      preLoaderRoute: typeof CreatorCharacterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/conversations': {
+      id: '/creator/conversations'
+      path: '/creator/conversations'
+      fullPath: '/creator/conversations'
+      preLoaderRoute: typeof CreatorConversationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/dashboard': {
+      id: '/creator/dashboard'
+      path: '/creator/dashboard'
+      fullPath: '/creator/dashboard'
+      preLoaderRoute: typeof CreatorDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/earnings': {
+      id: '/creator/earnings'
+      path: '/creator/earnings'
+      fullPath: '/creator/earnings'
+      preLoaderRoute: typeof CreatorEarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/knowledge': {
+      id: '/creator/knowledge'
+      path: '/creator/knowledge'
+      fullPath: '/creator/knowledge'
+      preLoaderRoute: typeof CreatorKnowledgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/onboarding': {
+      id: '/creator/onboarding'
+      path: '/creator/onboarding'
+      fullPath: '/creator/onboarding'
+      preLoaderRoute: typeof CreatorOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/settings': {
+      id: '/creator/settings'
+      path: '/creator/settings'
+      fullPath: '/creator/settings'
+      preLoaderRoute: typeof CreatorSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/voice/$id': {
+      id: '/voice/$id'
+      path: '/voice/$id'
+      fullPath: '/voice/$id'
+      preLoaderRoute: typeof VoiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -88,7 +358,20 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ExploreRoute: ExploreRoute,
+  LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
+  SignupRoute: SignupRoute,
   CharacterIdRoute: CharacterIdRoute,
+  ChatIdRoute: ChatIdRoute,
+  CreatorAnalyticsRoute: CreatorAnalyticsRoute,
+  CreatorCharacterRoute: CreatorCharacterRoute,
+  CreatorConversationsRoute: CreatorConversationsRoute,
+  CreatorDashboardRoute: CreatorDashboardRoute,
+  CreatorEarningsRoute: CreatorEarningsRoute,
+  CreatorKnowledgeRoute: CreatorKnowledgeRoute,
+  CreatorOnboardingRoute: CreatorOnboardingRoute,
+  CreatorSettingsRoute: CreatorSettingsRoute,
+  VoiceIdRoute: VoiceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
