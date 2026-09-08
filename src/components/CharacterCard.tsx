@@ -40,12 +40,8 @@ export function CharacterCard({ character }: { character: Character }) {
         <p className="mt-1.5 text-sm font-medium text-primary-deep">{character.title}</p>
         <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{character.description}</p>
 
-        <div className="mt-4 flex gap-2 pt-1">
-          <Button asChild={false} size="sm" className="flex-1" onClick={undefined}>
-            <span className="contents" />
-          </Button>
-        </div>
       </div>
+
 
       <div className="flex gap-2 border-t border-border p-4 pt-3">
         <Link to="/chat/$id" params={{ id: character.id }} className="flex-1">
