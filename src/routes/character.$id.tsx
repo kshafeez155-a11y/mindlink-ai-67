@@ -1,204 +1,188 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { Instagram, Linkedin, MessageSquare, Phone, ShieldCheck, Star, Twitter, Youtube } from "lucide-react";
+import { ArrowLeft, MessageSquare, Phone, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { SiteLayout } from "@/components/SiteLayout";
-import { Button, Card, Tabs, Tag } from "@/components/ui/primitives";
-import { getCharacter } from "@/data/mock";
+import { Button, Card } from "@/components/ui/primitives";
 import cover from "@/assets/cover-banner.jpg";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/character/$id")({
-  head: ({ params }) => {
-    const c = getCharacter(params.id);
-    return {
-      meta: [
-        { title: `${c.characterName} by ${c.creatorName} — MindLink` },
-        { name: "description", content: c.description },
-        { property: "og:title", content: `${c.characterName} — ${c.title}` },
-        { property: "og:description", content: c.description },
-      ],
-    };
-  },
+  head: () => ({
+    meta: [
+      { title: "AI Character — MindLink" },
+      {
+        name: "description",
+        content: "Meet a published MindLink AI character built from approved expertise.",
+      },
+    ],
+  }),
   component: Profile,
 });
 
-const socialIcons: Record<string, typeof Youtube> = {
-  YouTube: Youtube,
-  LinkedIn: Linkedin,
-  Instagram: Instagram,
-  "X (Twitter)": Twitter,
+type ProfileCharacter = {
+  id: string;
+  name: string | null;
+  tagline: string | null;
+  description: string | null;
+  avatar_url: string | null;
+  status: "published";
 };
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "AI"
+  );
+}
 
 function Profile() {
   const { id } = Route.useParams();
-  const character = getCharacter(id);
-  const [tab, setTab] = useState("About");
+  const [character, setCharacter] = useState<ProfileCharacter | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCharacter = async () => {
+      if (!supabase || !isUuid(id)) {
+        setError("We couldn't find this character.");
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      setAvatarFailed(false);
+      const { data, error: queryError } = await supabase
+        .from("characters")
+        .select("id, name, tagline, description, avatar_url, status")
+        .eq("id", id)
+        .eq("status", "published")
+        .maybeSingle();
+
+      if (!mounted) return;
+      if (queryError || !data) {
+        setCharacter(null);
+        setError("We couldn't find this character.");
+      } else {
+        setCharacter(data as ProfileCharacter);
+      }
+      setLoading(false);
+    };
+
+    void loadCharacter();
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <SiteLayout>
+        <div className="mx-auto max-w-6xl px-4 py-10 text-sm text-muted-foreground sm:px-6">
+          Loading character...
+        </div>
+      </SiteLayout>
+    );
+  }
+
+  if (!character) {
+    return (
+      <SiteLayout>
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+          <p className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {error ?? "We couldn't find this character."}
+          </p>
+        </div>
+      </SiteLayout>
+    );
+  }
+
+  const characterName = character.name?.trim() || "AI character";
+  const tagline = character.tagline?.trim() || "AI character";
+  const description =
+    character.description?.trim() || "This character's description is not available yet.";
 
   return (
     <SiteLayout>
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
-        {/* HEADER CARD */}
+        <Link
+          to="/explore"
+          className="mb-5 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to explore
+        </Link>
         <Card className="overflow-hidden p-0">
           <div className="relative h-40 sm:h-56">
             <img src={cover} alt="" className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-linear-to-r from-navy/70 via-navy/30 to-transparent" />
           </div>
-
           <div className="relative px-5 pb-6 sm:px-8">
             <div className="grid gap-5 pt-6 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-end">
               <div className="-mt-20 sm:-mt-24">
-                <img
-                  src={character.photo}
-                  alt={character.creatorName}
-                  width={640}
-                  height={640}
-                  className="h-28 w-28 shrink-0 rounded-3xl border-4 border-card object-cover object-top shadow-lift sm:h-36 sm:w-36"
-                />
+                {character.avatar_url && !avatarFailed ? (
+                  <img
+                    src={character.avatar_url}
+                    alt={characterName}
+                    onError={() => setAvatarFailed(true)}
+                    className="h-28 w-28 rounded-3xl border-4 border-card object-cover object-top shadow-lift sm:h-36 sm:w-36"
+                  />
+                ) : (
+                  <div className="grid h-28 w-28 place-items-center rounded-3xl border-4 border-card bg-primary-soft text-3xl font-bold text-primary-deep shadow-lift sm:h-36 sm:w-36">
+                    {initials(characterName)}
+                  </div>
+                )}
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-2xl font-bold sm:text-3xl">{character.characterName}</h1>
+                  <h1 className="text-2xl font-bold sm:text-3xl">{characterName}</h1>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-xs font-semibold text-success">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success" /> AI Character Online
+                    <span className="h-1.5 w-1.5 rounded-full bg-success" /> Published
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">by {character.creatorName}</p>
-                <p className="mt-1 font-medium text-primary-deep">{character.title}</p>
+                <p className="mt-1 font-medium text-primary-deep">{tagline}</p>
               </div>
             </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              {character.tags.map((t) => (
-                <Tag key={t}>{t}</Tag>
-              ))}
-            </div>
-
-            <p className="mt-5 max-w-2xl text-muted-foreground">"{character.description}"</p>
-
-            <div className="mt-6 flex flex-wrap gap-8 border-t border-border pt-6">
-              <Stat value={character.followers} label="Followers" />
-              <Stat value={character.conversations} label="Conversations" />
-              <div>
-                <p className="flex items-center gap-1.5 text-2xl font-bold">
-                  {character.rating}
-                  <Star className="h-4 w-4 fill-primary text-primary" />
-                </p>
-                <p className="text-sm text-muted-foreground">Rating</p>
-              </div>
-            </div>
-
+            <p className="mt-6 max-w-2xl text-muted-foreground">{description}</p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link to="/chat/$id" params={{ id: character.id }} className="sm:flex-1">
                 <Button size="lg" className="w-full">
                   <MessageSquare className="h-4.5 w-4.5" /> Start Chat
                 </Button>
               </Link>
-              <Link to="/voice/$id" params={{ id: character.id }} className="sm:flex-1">
-                <Button size="lg" variant="outline" className="w-full">
-                  <Phone className="h-4.5 w-4.5" /> Talk to {character.creatorName.split(" ")[0]}
-                </Button>
-              </Link>
+              <Button size="lg" variant="outline" className="sm:flex-1" disabled>
+                <Phone className="h-4.5 w-4.5" /> Voice unavailable
+              </Button>
             </div>
           </div>
         </Card>
 
-        {/* BODY */}
-        <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <Card className="min-w-0 p-5 sm:p-7">
-            <Tabs tabs={["About", "Popular Questions", "Reviews"]} active={tab} onChange={setTab} />
-
-            {tab === "About" ? (
-              <div className="pt-6">
-                <p className="text-muted-foreground">{character.about}</p>
-                <h3 className="mt-8 text-lg font-semibold">Popular questions</h3>
-                <div className="mt-4 grid gap-3">
-                  {character.popularQuestions.map((q) => (
-                    <Link key={q} to="/chat/$id" params={{ id: character.id }}>
-                      <div className="rounded-xl border border-border px-4 py-3.5 text-sm transition-colors hover:border-primary/40 hover:bg-primary-soft">
-                        {q}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {tab === "Popular Questions" ? (
-              <div className="grid gap-3 pt-6">
-                {character.popularQuestions.map((q) => (
-                  <Link key={q} to="/chat/$id" params={{ id: character.id }}>
-                    <div className="flex items-center justify-between rounded-xl border border-border px-4 py-3.5 text-sm transition-colors hover:border-primary/40 hover:bg-primary-soft">
-                      {q}
-                      <MessageSquare className="h-4 w-4 text-primary" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-
-            {tab === "Reviews" ? (
-              <div className="space-y-4 pt-6">
-                {[
-                  { name: "Meera R.", text: "Felt like a real coaching session. Practical and direct.", stars: 5 },
-                  { name: "Dev P.", text: "Answered at 2am when I needed it. Genuinely useful.", stars: 5 },
-                  { name: "Sana M.", text: "Great for quick questions, still book the real call for depth.", stars: 4 },
-                ].map((r) => (
-                  <div key={r.name} className="rounded-xl border border-border p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold">{r.name}</p>
-                      <div className="flex gap-0.5">
-                        {Array.from({ length: r.stars }).map((_, i) => (
-                          <Star key={i} className="h-3.5 w-3.5 fill-primary text-primary" />
-                        ))}
-                      </div>
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">{r.text}</p>
-                  </div>
-                ))}
-              </div>
-            ) : null}
+            <h2 className="text-lg font-semibold">About this AI character</h2>
+            <p className="mt-4 text-muted-foreground">{description}</p>
           </Card>
-
-          <div className="min-w-0 space-y-5">
-            <Card className="p-5">
-              <p className="font-semibold">Connect with {character.creatorName.split(" ")[0]}</p>
-              <div className="mt-4 space-y-2">
-                {character.socials.map((s) => {
-                  const Icon = socialIcons[s.label] ?? Youtube;
-                  return (
-                    <div
-                      key={s.label}
-                      className="flex items-center gap-3 rounded-xl border border-border px-3.5 py-3 text-sm transition-colors hover:border-primary/40 hover:bg-primary-soft"
-                    >
-                      <Icon className="h-4 w-4 text-primary" />
-                      <span className="font-medium">{s.label}</span>
-                      <span className="ml-auto truncate text-xs text-muted-foreground">{s.handle}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-
-            <Card className="border-primary/25 bg-primary-soft p-5">
-              <p className="flex items-center gap-2 text-sm font-semibold text-primary-deep">
-                <ShieldCheck className="h-4 w-4" /> About this AI character
-              </p>
-              <p className="mt-2 text-sm text-primary-deep/80">
-                This is an AI character based on {character.creatorName.split(" ")[0]}'s approved
-                knowledge and communication guidelines. It is not the real person.
-              </p>
-            </Card>
-          </div>
+          <Card className="border-primary/25 bg-primary-soft p-5">
+            <p className="flex items-center gap-2 text-sm font-semibold text-primary-deep">
+              <ShieldCheck className="h-4 w-4" /> Approved knowledge
+            </p>
+            <p className="mt-2 text-sm text-primary-deep/80">
+              This AI character is based on approved knowledge and communication guidelines. It is
+              not a real person.
+            </p>
+          </Card>
         </div>
       </div>
     </SiteLayout>
-  );
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-sm text-muted-foreground">{label}</p>
-    </div>
   );
 }

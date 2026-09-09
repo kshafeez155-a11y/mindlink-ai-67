@@ -24,7 +24,18 @@ type ChunkInsert = {
   chunk_index: number;
   content: string;
   token_count: null;
+  embedding: number[];
 };
+
+class EmbeddingGenerationError extends Error {
+  technicalMessage: string;
+
+  constructor(message: string, technicalMessage = message) {
+    super(message);
+    this.name = "EmbeddingGenerationError";
+    this.technicalMessage = technicalMessage;
+  }
+}
 
 function response(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -121,6 +132,54 @@ async function sourceText(source: KnowledgeSource, admin: ReturnType<typeof crea
   return normalizeWhitespace(new TextDecoder().decode(bytes));
 }
 
+async function generateEmbedding(content: string, apiKey: string) {
+  let embeddingResponse: Response;
+  try {
+    embeddingResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: { parts: [{ text: content }] },
+          outputDimensionality: 768,
+        }),
+      },
+    );
+  } catch (error) {
+    const technicalMessage = error instanceof Error ? error.message : String(error);
+    throw new EmbeddingGenerationError(
+      "We couldn't generate embeddings for this knowledge source.",
+      `Gemini embedding request failed: ${technicalMessage}`,
+    );
+  }
+  const payload = (await embeddingResponse.json().catch(() => null)) as {
+    embedding?: { values?: unknown };
+    error?: { message?: string };
+  } | null;
+
+  if (!embeddingResponse.ok) {
+    const providerMessage = payload?.error?.message ?? `HTTP ${embeddingResponse.status}`;
+    throw new EmbeddingGenerationError(
+      "We couldn't generate embeddings for this knowledge source.",
+      `Gemini embedding request failed: ${providerMessage}`,
+    );
+  }
+
+  const values = payload?.embedding?.values;
+  if (
+    !Array.isArray(values) ||
+    values.length !== 768 ||
+    values.some((value) => typeof value !== "number" || !Number.isFinite(value))
+  ) {
+    throw new EmbeddingGenerationError(
+      "We couldn't generate valid embeddings for this knowledge source.",
+      "Gemini returned an invalid embedding vector.",
+    );
+  }
+  return values as number[];
+}
+
 async function main(request: Request) {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST")
@@ -176,6 +235,7 @@ async function main(request: Request) {
   if (!source) return response({ error: "You do not have access to this knowledge source." }, 403);
 
   const typedSource = source as KnowledgeSource;
+  const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
   const { error: processingUpdateError } = await admin
     .from("knowledge_sources")
     .update({ processing_status: "processing", processing_error: null })
@@ -185,6 +245,9 @@ async function main(request: Request) {
   }
 
   try {
+    if (!geminiApiKey) {
+      throw new EmbeddingGenerationError("Knowledge embeddings are not configured.");
+    }
     const text = await sourceText(typedSource, admin);
     if (!text) throw new Error("We couldn't find readable text in this source.");
     const chunks = chunkText(text);
@@ -196,13 +259,18 @@ async function main(request: Request) {
       .eq("knowledge_source_id", typedSource.id);
     if (deleteError) throw new Error("We couldn't replace the existing knowledge chunks.");
 
-    const inserts: ChunkInsert[] = chunks.map((content, chunkIndex) => ({
-      knowledge_source_id: typedSource.id,
-      character_id: typedSource.character_id,
-      chunk_index: chunkIndex,
-      content,
-      token_count: null,
-    }));
+    const inserts: ChunkInsert[] = [];
+    for (const [chunkIndex, content] of chunks.entries()) {
+      const embedding = await generateEmbedding(content, geminiApiKey);
+      inserts.push({
+        knowledge_source_id: typedSource.id,
+        character_id: typedSource.character_id,
+        chunk_index: chunkIndex,
+        content,
+        token_count: null,
+        embedding,
+      });
+    }
     const { error: insertError } = await admin.from("knowledge_chunks").insert(inserts);
     if (insertError) throw new Error("We couldn't save the extracted knowledge chunks.");
 
@@ -214,12 +282,21 @@ async function main(request: Request) {
     return response({ success: true, chunk_count: chunks.length });
   } catch (error) {
     const safeError =
-      error instanceof Error ? error.message : "We couldn't process this knowledge source.";
+      error instanceof EmbeddingGenerationError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "We couldn't process this knowledge source.";
+    const technicalError =
+      error instanceof EmbeddingGenerationError ? error.technicalMessage : error;
     await admin
       .from("knowledge_sources")
       .update({ processing_status: "failed", processing_error: safeError })
       .eq("id", typedSource.id);
-    console.error("Knowledge processing failed", { sourceId: typedSource.id, error });
+    console.error("Knowledge processing failed", {
+      sourceId: typedSource.id,
+      error: technicalError,
+    });
     return response({ error: safeError }, 422);
   }
 }

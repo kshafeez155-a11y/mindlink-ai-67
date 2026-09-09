@@ -25,6 +25,7 @@ import { Route as CreatorKnowledgeRouteImport } from './routes/creator/knowledge
 import { Route as CreatorOnboardingRouteImport } from './routes/creator/onboarding'
 import { Route as CreatorSettingsRouteImport } from './routes/creator/settings'
 import { Route as VoiceIdRouteImport } from './routes/voice.$id'
+import { Route as CreatorConversationsConversationIdRouteImport } from './routes/creator/conversations.$conversationId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -106,6 +107,12 @@ const VoiceIdRoute = VoiceIdRouteImport.update({
   path: '/voice/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CreatorConversationsConversationIdRoute =
+  CreatorConversationsConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => CreatorConversationsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -117,13 +124,14 @@ export interface FileRoutesByFullPath {
   '/chat/$id': typeof ChatIdRoute
   '/creator/analytics': typeof CreatorAnalyticsRoute
   '/creator/character': typeof CreatorCharacterRoute
-  '/creator/conversations': typeof CreatorConversationsRoute
+  '/creator/conversations': typeof CreatorConversationsRouteWithChildren
   '/creator/dashboard': typeof CreatorDashboardRoute
   '/creator/earnings': typeof CreatorEarningsRoute
   '/creator/knowledge': typeof CreatorKnowledgeRoute
   '/creator/onboarding': typeof CreatorOnboardingRoute
   '/creator/settings': typeof CreatorSettingsRoute
   '/voice/$id': typeof VoiceIdRoute
+  '/creator/conversations/$conversationId': typeof CreatorConversationsConversationIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -135,13 +143,14 @@ export interface FileRoutesByTo {
   '/chat/$id': typeof ChatIdRoute
   '/creator/analytics': typeof CreatorAnalyticsRoute
   '/creator/character': typeof CreatorCharacterRoute
-  '/creator/conversations': typeof CreatorConversationsRoute
+  '/creator/conversations': typeof CreatorConversationsRouteWithChildren
   '/creator/dashboard': typeof CreatorDashboardRoute
   '/creator/earnings': typeof CreatorEarningsRoute
   '/creator/knowledge': typeof CreatorKnowledgeRoute
   '/creator/onboarding': typeof CreatorOnboardingRoute
   '/creator/settings': typeof CreatorSettingsRoute
   '/voice/$id': typeof VoiceIdRoute
+  '/creator/conversations/$conversationId': typeof CreatorConversationsConversationIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -154,13 +163,14 @@ export interface FileRoutesById {
   '/chat/$id': typeof ChatIdRoute
   '/creator/analytics': typeof CreatorAnalyticsRoute
   '/creator/character': typeof CreatorCharacterRoute
-  '/creator/conversations': typeof CreatorConversationsRoute
+  '/creator/conversations': typeof CreatorConversationsRouteWithChildren
   '/creator/dashboard': typeof CreatorDashboardRoute
   '/creator/earnings': typeof CreatorEarningsRoute
   '/creator/knowledge': typeof CreatorKnowledgeRoute
   '/creator/onboarding': typeof CreatorOnboardingRoute
   '/creator/settings': typeof CreatorSettingsRoute
   '/voice/$id': typeof VoiceIdRoute
+  '/creator/conversations/$conversationId': typeof CreatorConversationsConversationIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
     | '/creator/onboarding'
     | '/creator/settings'
     | '/voice/$id'
+    | '/creator/conversations/$conversationId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/creator/onboarding'
     | '/creator/settings'
     | '/voice/$id'
+    | '/creator/conversations/$conversationId'
   id:
     | '__root__'
     | '/'
@@ -217,6 +229,7 @@ export interface FileRouteTypes {
     | '/creator/onboarding'
     | '/creator/settings'
     | '/voice/$id'
+    | '/creator/conversations/$conversationId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -229,7 +242,7 @@ export interface RootRouteChildren {
   ChatIdRoute: typeof ChatIdRoute
   CreatorAnalyticsRoute: typeof CreatorAnalyticsRoute
   CreatorCharacterRoute: typeof CreatorCharacterRoute
-  CreatorConversationsRoute: typeof CreatorConversationsRoute
+  CreatorConversationsRoute: typeof CreatorConversationsRouteWithChildren
   CreatorDashboardRoute: typeof CreatorDashboardRoute
   CreatorEarningsRoute: typeof CreatorEarningsRoute
   CreatorKnowledgeRoute: typeof CreatorKnowledgeRoute
@@ -352,8 +365,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VoiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/creator/conversations/$conversationId': {
+      id: '/creator/conversations/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/creator/conversations/$conversationId'
+      preLoaderRoute: typeof CreatorConversationsConversationIdRouteImport
+      parentRoute: typeof CreatorConversationsRoute
+    }
   }
 }
+
+interface CreatorConversationsRouteChildren {
+  CreatorConversationsConversationIdRoute: typeof CreatorConversationsConversationIdRoute
+}
+
+const CreatorConversationsRouteChildren: CreatorConversationsRouteChildren = {
+  CreatorConversationsConversationIdRoute:
+    CreatorConversationsConversationIdRoute,
+}
+
+const CreatorConversationsRouteWithChildren =
+  CreatorConversationsRoute._addFileChildren(CreatorConversationsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -365,7 +397,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatIdRoute: ChatIdRoute,
   CreatorAnalyticsRoute: CreatorAnalyticsRoute,
   CreatorCharacterRoute: CreatorCharacterRoute,
-  CreatorConversationsRoute: CreatorConversationsRoute,
+  CreatorConversationsRoute: CreatorConversationsRouteWithChildren,
   CreatorDashboardRoute: CreatorDashboardRoute,
   CreatorEarningsRoute: CreatorEarningsRoute,
   CreatorKnowledgeRoute: CreatorKnowledgeRoute,

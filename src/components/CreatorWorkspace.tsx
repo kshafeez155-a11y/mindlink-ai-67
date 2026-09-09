@@ -1,18 +1,19 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, CircleDollarSign, FileText, MessageSquare, Sparkles } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { creatorNavItems, PageHeader } from "@/components/CreatorNav";
 import { DashShell } from "@/components/DashShell";
 import { Card, StatsCard } from "@/components/ui/primitives";
 import {
   analyticsSeries,
-  conversationLog,
   dashboardStats,
   earnings,
   getCharacter,
   knowledgeSources,
   recentActivity,
 } from "@/data/mock";
-import type { ReactNode } from "react";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 export function CreatorWorkspace({ section = "Dashboard" }: { section?: string }) {
   const page = creatorPages[section] ?? creatorPages.Dashboard;
@@ -106,12 +107,131 @@ function DashboardPage() {
   );
 }
 
+type CreatorCharacter = {
+  id: string;
+  name: string | null;
+  tagline: string | null;
+  description: string | null;
+  avatar_url: string | null;
+  status: "draft" | "published";
+};
+
 function CharacterPage() {
+  const { user, loading: authLoading } = useAuth();
+  const [creatorId, setCreatorId] = useState<string | null>(null);
+  const [character, setCharacter] = useState<CreatorCharacter | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCharacter = async () => {
+      if (authLoading) return;
+      if (!user || !supabase) {
+        if (mounted) {
+          setError("Sign in to manage your character.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      const { data: creator, error: creatorError } = await supabase
+        .from("creators")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (creatorError) {
+        if (mounted) {
+          setError("We couldn't load your creator account. Please try again.");
+          setLoading(false);
+        }
+        return;
+      }
+      if (!creator) {
+        if (mounted) {
+          setError("Create a character before managing its publication status.");
+          setLoading(false);
+        }
+        return;
+      }
+      setCreatorId(creator.id);
+
+      const { data: characterRecord, error: characterError } = await supabase
+        .from("characters")
+        .select("id, name, tagline, description, avatar_url, status")
+        .eq("creator_id", creator.id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!mounted) return;
+      if (characterError || !characterRecord) {
+        setError("We couldn't load your character. Please try again.");
+      } else {
+        setCharacter(characterRecord as CreatorCharacter);
+      }
+      setLoading(false);
+    };
+
+    void loadCharacter();
+    return () => {
+      mounted = false;
+    };
+  }, [authLoading, user]);
+
+  const updateStatus = async () => {
+    if (!character || !creatorId || !supabase || !user || updating) return;
+    const nextStatus = character.status === "published" ? "draft" : "published";
+    if (
+      nextStatus === "draft" &&
+      !window.confirm("Unpublish this character from public Explore?")
+    ) {
+      return;
+    }
+
+    setUpdating(true);
+    setError(null);
+    setNotice(null);
+    const { error: updateError } = await supabase
+      .from("characters")
+      .update({ status: nextStatus })
+      .eq("id", character.id)
+      .eq("creator_id", creatorId);
+    if (updateError) {
+      setError("We couldn't update your character's publication status. Please try again.");
+    } else {
+      setCharacter((current) => (current ? { ...current, status: nextStatus } : current));
+      setNotice(nextStatus === "published" ? "Character published." : "Character unpublished.");
+    }
+    setUpdating(false);
+  };
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading your character...</p>;
+  }
+
+  if (!character) {
+    return <p className="text-sm text-destructive">{error ?? "Character not found."}</p>;
+  }
+
+  const characterName = character.name?.trim() || "AI character";
+  const initials =
+    characterName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "AI";
+
   return (
     <>
       <PageHeader
         title="My character"
-        subtitle="Shape how Rahul AI represents your expertise."
+        subtitle="Shape how your AI character represents your expertise."
         action={
           <Link
             to="/creator/onboarding"
@@ -123,28 +243,46 @@ function CharacterPage() {
       />
       <Card className="mt-8 p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <img
-            src={getCharacter("rahul-sharma").photo}
-            alt="Rahul AI"
-            className="h-24 w-24 rounded-2xl object-cover object-top"
-          />
+          {character.avatar_url ? (
+            <img
+              src={character.avatar_url}
+              alt={characterName}
+              className="h-24 w-24 rounded-2xl object-cover object-top"
+            />
+          ) : (
+            <div className="grid h-24 w-24 place-items-center rounded-2xl bg-primary-soft text-2xl font-bold text-primary-deep">
+              {initials}
+            </div>
+          )}
           <div className="flex-1">
-            <h2 className="text-xl font-bold">Rahul AI</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Entrepreneur &amp; Investor</p>
-            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-              Ask me about startups, business, investing, productivity and entrepreneurship.
+            <h2 className="text-xl font-bold">{characterName}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {character.tagline ?? "AI character"}
             </p>
+            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{character.description}</p>
           </div>
-          <Link to="/character/rahul-sharma" className="text-sm font-semibold text-primary">
-            View profile
-          </Link>
+          <div className="flex flex-col items-start gap-3 sm:items-end">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              {character.status === "published" ? "Published" : "Draft"}
+            </span>
+            <button
+              type="button"
+              onClick={() => void updateStatus()}
+              disabled={updating}
+              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:pointer-events-none disabled:opacity-50"
+            >
+              {updating
+                ? "Updating..."
+                : character.status === "published"
+                  ? "Unpublish character"
+                  : "Publish character"}
+            </button>
+          </div>
         </div>
       </Card>
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <StatsCard value="Published" label="Status" />
-        <StatsCard value="4.9 / 5" label="Audience rating" />
-        <StatsCard value="12k" label="Conversations" />
-      </div>
+      {notice ? <p className="mt-3 text-sm text-success">{notice}</p> : null}
+      {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
     </>
   );
 }
@@ -183,39 +321,206 @@ function KnowledgePage() {
   );
 }
 
+type CreatorConversation = {
+  id: string;
+  characterName: string;
+  audienceName: string;
+  preview: string;
+  activity: string;
+  messageCount: number;
+};
+
+function formatConversationTime(timestamp: string) {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime())
+    ? "Unknown"
+    : date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
 function ConversationsPage() {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const [conversations, setConversations] = useState<CreatorConversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadConversations = async () => {
+      if (authLoading) return;
+      if (!user || !supabase) {
+        if (mounted) {
+          setConversations([]);
+          setError("Sign in to view your conversations.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const { data: creator, error: creatorError } = await supabase
+          .from("creators")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (creatorError) throw creatorError;
+
+        if (!creator) {
+          if (mounted) setConversations([]);
+          return;
+        }
+
+        const { data: characters, error: charactersError } = await supabase
+          .from("characters")
+          .select("id, name")
+          .eq("creator_id", creator.id);
+        if (charactersError) throw charactersError;
+
+        const characterRows = characters ?? [];
+        if (characterRows.length === 0) {
+          if (mounted) setConversations([]);
+          return;
+        }
+
+        const characterIds = characterRows.map((character) => character.id);
+        const characterNames = new Map(
+          characterRows.map((character) => [character.id, character.name ?? "AI character"]),
+        );
+        const { data: conversationRows, error: conversationsError } = await supabase
+          .from("conversations")
+          .select("id, character_id, audience_user_id, updated_at")
+          .in("character_id", characterIds)
+          .order("updated_at", { ascending: false });
+        if (conversationsError) throw conversationsError;
+
+        const rows = conversationRows ?? [];
+        if (rows.length === 0) {
+          if (mounted) setConversations([]);
+          return;
+        }
+
+        const conversationIds = rows.map((conversation) => conversation.id);
+        const { data: messageRows, error: messagesError } = await supabase
+          .from("messages")
+          .select("conversation_id, content, created_at")
+          .in("conversation_id", conversationIds)
+          .order("created_at", { ascending: false });
+        if (messagesError) throw messagesError;
+
+        const latestMessages = new Map<string, string>();
+        const messageCounts = new Map<string, number>();
+        for (const message of messageRows ?? []) {
+          messageCounts.set(
+            message.conversation_id,
+            (messageCounts.get(message.conversation_id) ?? 0) + 1,
+          );
+          if (!latestMessages.has(message.conversation_id)) {
+            latestMessages.set(message.conversation_id, message.content);
+          }
+        }
+
+        const audienceIds = [...new Set(rows.map((conversation) => conversation.audience_user_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", audienceIds);
+        const audienceNames = new Map(
+          (profiles ?? []).map((profile) => [profile.id, profile.full_name?.trim()]),
+        );
+
+        const nextConversations = rows.map((conversation) => ({
+          id: conversation.id,
+          characterName: characterNames.get(conversation.character_id) ?? "AI character",
+          audienceName: audienceNames.get(conversation.audience_user_id) || "Audience member",
+          preview: latestMessages.get(conversation.id)?.trim() || "No messages yet.",
+          activity: formatConversationTime(conversation.updated_at),
+          messageCount: messageCounts.get(conversation.id) ?? 0,
+        }));
+
+        if (mounted) setConversations(nextConversations);
+      } catch {
+        if (mounted) {
+          setConversations([]);
+          setError("We couldn't load your conversations. Please try again.");
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void loadConversations();
+    return () => {
+      mounted = false;
+    };
+  }, [authLoading, user]);
+
   return (
     <>
-      <PageHeader title="Conversations" subtitle="See how people are using Rahul AI." />
+      <PageHeader title="Conversations" subtitle="See how people are using your AI characters." />
       <Card className="mt-8 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-left text-sm">
-            <thead className="border-b border-border bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-5 py-3 font-semibold">User</th>
-                <th className="px-5 py-3 font-semibold">Topic</th>
-                <th className="px-5 py-3 font-semibold">Type</th>
-                <th className="px-5 py-3 font-semibold">Messages</th>
-                <th className="px-5 py-3 font-semibold">When</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {conversationLog.map((row) => (
-                <tr key={`${row.user}-${row.time}`}>
-                  <td className="px-5 py-4 font-medium">{row.user}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{row.topic}</td>
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary-deep">
-                      {row.type}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-muted-foreground">{row.messages}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{row.time}</td>
+        {loading ? (
+          <p className="p-6 text-sm text-muted-foreground">Loading conversations...</p>
+        ) : error ? (
+          <p className="p-6 text-sm text-destructive">{error}</p>
+        ) : conversations.length === 0 ? (
+          <p className="p-6 text-sm text-muted-foreground">
+            No conversations yet. Conversations will appear here when people chat with your AI
+            character.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="border-b border-border bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Audience</th>
+                  <th className="px-5 py-3 font-semibold">Character</th>
+                  <th className="px-5 py-3 font-semibold">Latest message</th>
+                  <th className="px-5 py-3 font-semibold">Messages</th>
+                  <th className="px-5 py-3 font-semibold">When</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {conversations.map((conversation) => (
+                  <tr
+                    key={conversation.id}
+                    role="link"
+                    tabIndex={0}
+                    className="cursor-pointer transition-colors hover:bg-secondary/50 focus-visible:bg-secondary/50 focus-visible:outline-none"
+                    onClick={() =>
+                      void navigate({
+                        to: "/creator/conversations/$conversationId",
+                        params: { conversationId: conversation.id },
+                      })
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        void navigate({
+                          to: "/creator/conversations/$conversationId",
+                          params: { conversationId: conversation.id },
+                        });
+                      }
+                    }}
+                  >
+                    <td className="px-5 py-4 font-medium">{conversation.audienceName}</td>
+                    <td className="px-5 py-4 text-muted-foreground">
+                      {conversation.characterName}
+                    </td>
+                    <td className="max-w-md truncate px-5 py-4 text-muted-foreground">
+                      {conversation.preview}
+                    </td>
+                    <td className="px-5 py-4 text-muted-foreground">{conversation.messageCount}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{conversation.activity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </>
   );
