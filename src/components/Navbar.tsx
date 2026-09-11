@@ -4,6 +4,7 @@ import { LayoutDashboard, Menu, Search, Settings, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
+import { useAccountType } from "@/hooks/use-account-type";
 import rahul from "@/assets/creator-rahul.jpg";
 
 const links = [
@@ -16,6 +17,11 @@ const links = [
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const { user, loading, signOut } = useAuth();
+  const { accountType } = useAccountType();
+  const isCreator = accountType === "creator";
+  const visibleLinks = links.filter(
+    (link) => link.to !== "/creator/onboarding" || (!loading && (!user || isCreator)),
+  );
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-background/85 backdrop-blur-xl">
@@ -23,11 +29,11 @@ export function Navbar() {
         <div className="flex min-w-0 items-center gap-8">
           <Logo />
           <nav className="hidden items-center gap-1 lg:flex">
-            {links.map((l) => (
+            {visibleLinks.map((l) => (
               <Link
                 key={l.label}
                 to={l.to}
-                search={l.search}
+                {...(l.search ? { search: l.search } : {})}
                 className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 activeProps={{ className: "text-primary" }}
               >
@@ -47,16 +53,20 @@ export function Navbar() {
             <span className="px-3 text-sm text-muted-foreground">Loading...</span>
           ) : user ? (
             <>
-              <Link to="/creator/dashboard">
-                <Button variant="outline" size="sm">
-                  <LayoutDashboard className="h-4 w-4" /> Dashboard
-                </Button>
-              </Link>
-              <Link to="/creator/settings">
-                <Button variant="ghost" size="icon" aria-label="Settings">
-                  <Settings className="h-4.5 w-4.5" />
-                </Button>
-              </Link>
+              {isCreator ? (
+                <>
+                  <Link to="/creator/dashboard">
+                    <Button variant="outline" size="sm">
+                      <LayoutDashboard className="h-4 w-4" /> Dashboard
+                    </Button>
+                  </Link>
+                  <Link to="/creator/settings">
+                    <Button variant="ghost" size="icon" aria-label="Settings">
+                      <Settings className="h-4.5 w-4.5" />
+                    </Button>
+                  </Link>
+                </>
+              ) : null}
               <Button variant="ghost" size="sm" onClick={() => void signOut()}>
                 Sign Out
               </Button>
@@ -92,11 +102,11 @@ export function Navbar() {
       {open ? (
         <div className="border-t border-border bg-card px-4 py-4 lg:hidden">
           <nav className="flex flex-col gap-1">
-            {links.map((l) => (
+            {visibleLinks.map((l) => (
               <Link
                 key={l.label}
                 to={l.to}
-                search={l.search}
+                {...(l.search ? { search: l.search } : {})}
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
               >
@@ -109,9 +119,11 @@ export function Navbar() {
               <span className="px-3 py-2 text-sm text-muted-foreground">Loading...</span>
             ) : user ? (
               <>
-                <Link to="/creator/dashboard" onClick={() => setOpen(false)}>
-                  <Button className="w-full">Dashboard</Button>
-                </Link>
+                {isCreator ? (
+                  <Link to="/creator/dashboard" onClick={() => setOpen(false)}>
+                    <Button className="w-full">Dashboard</Button>
+                  </Link>
+                ) : null}
                 <Button variant="outline" className="w-full" onClick={() => void signOut()}>
                   Sign Out
                 </Button>

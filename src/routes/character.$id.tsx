@@ -160,9 +160,11 @@ function Profile() {
                   <MessageSquare className="h-4.5 w-4.5" /> Start Chat
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="sm:flex-1" disabled>
-                <Phone className="h-4.5 w-4.5" /> Voice unavailable
-              </Button>
+              <Link to="/voice/$id" params={{ id: character.id }} className="sm:flex-1">
+                <Button size="lg" variant="outline" className="w-full">
+                  <Phone className="h-4.5 w-4.5" /> Talk with AI
+                </Button>
+              </Link>
             </div>
           </div>
         </Card>

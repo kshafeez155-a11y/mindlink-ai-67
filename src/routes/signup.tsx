@@ -1,33 +1,42 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Chrome, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SiteLayout } from "@/components/SiteLayout";
 import { Button, Card, Field } from "@/components/ui/primitives";
-import { useAuth } from "@/lib/auth";
+import { useAuth, type AccountType } from "@/lib/auth";
 
 export const Route = createFileRoute("/signup")({ component: SignupPage });
 
 function SignupPage() {
-  const { error, loading, sendMagicLink, signInWithGoogle, clearError } = useAuth();
+  const { error, loading, sendMagicLink, signInWithGoogle, clearError, user } = useAuth();
+  const navigate = useNavigate();
+  const userId = user?.id;
+  const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!loading && userId) void navigate({ to: "/login", replace: true });
+  }, [loading, userId, navigate]);
+
   const handleMagicLink = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!accountType || submitting || userId) return;
     setMessage(null);
     clearError();
     setSubmitting(true);
-    const result = await sendMagicLink(email);
+    const result = await sendMagicLink(email, accountType);
     setSubmitting(false);
     if (!result.error) setMessage("Check your email to finish creating your account.");
   };
 
   const handleGoogle = async () => {
+    if (!accountType || submitting || userId) return;
     setMessage(null);
     clearError();
     setSubmitting(true);
-    const result = await signInWithGoogle();
+    const result = await signInWithGoogle(accountType);
     if (result.error) setSubmitting(false);
   };
   return (
@@ -41,6 +50,35 @@ function SignupPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Create your account with a secure email link.
           </p>
+          <fieldset className="mt-6 space-y-3" disabled={submitting || loading || !!userId}>
+            <legend className="mb-3 text-sm font-semibold">
+              How would you like to use MindLink?
+            </legend>
+            {(
+              [
+                ["creator", "Creator", "Create an AI version of your knowledge and expertise."],
+                ["user", "Audience", "Discover and chat with AI characters."],
+              ] as const
+            ).map(([value, label, description]) => (
+              <label
+                key={value}
+                className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${accountType === value ? "border-primary bg-primary-soft" : "border-border"}`}
+              >
+                <input
+                  type="radio"
+                  name="accountType"
+                  value={value}
+                  checked={accountType === value}
+                  onChange={() => setAccountType(value)}
+                  className="mt-1 accent-primary"
+                />
+                <span>
+                  <span className="block text-sm font-semibold">{label}</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
           <form className="mt-7 space-y-5" onSubmit={handleMagicLink}>
             <Field
               label="Email"
@@ -58,7 +96,11 @@ function SignupPage() {
             {message ? (
               <p className="rounded-xl bg-success-soft px-3 py-2 text-sm text-success">{message}</p>
             ) : null}
-            <Button className="w-full" type="submit" disabled={submitting || loading}>
+            <Button
+              className="w-full"
+              type="submit"
+              disabled={submitting || loading || !accountType || !!userId}
+            >
               {submitting ? "Sending link..." : "Get Started"} <ArrowRight className="h-4 w-4" />
             </Button>
           </form>
@@ -70,7 +112,7 @@ function SignupPage() {
             className="w-full"
             type="button"
             onClick={() => void handleGoogle()}
-            disabled={submitting || loading}
+            disabled={submitting || loading || !accountType || !!userId}
           >
             <Chrome className="h-4 w-4" /> Continue with Google
           </Button>

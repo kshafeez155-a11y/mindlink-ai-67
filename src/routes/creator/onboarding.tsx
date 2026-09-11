@@ -35,17 +35,6 @@ type OnboardingForm = {
   instructions: string;
 };
 
-type CharacterRow = {
-  id: string;
-  name: string | null;
-  slug: string | null;
-  tagline: string | null;
-  description: string | null;
-  avatar_url: string | null;
-  personality: string | null;
-  instructions: string | null;
-};
-
 type KnowledgeSource = {
   id: string;
   source_type: "pdf" | "document" | "text" | "url" | "youtube";
@@ -116,6 +105,7 @@ function formatProcessingStatus(status: KnowledgeSource["processing_status"]) {
 
 function OnboardingPage() {
   const { user, loading: authLoading } = useAuth();
+  const userId = user?.id;
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<OnboardingForm>(initialForm);
@@ -127,6 +117,7 @@ function OnboardingPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [sourcesError, setSourcesError] = useState<string | null>(null);
   const [knowledgeBusy, setKnowledgeBusy] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteText, setNoteText] = useState("");
@@ -136,7 +127,7 @@ function OnboardingPage() {
   }, [authLoading, navigate, user]);
 
   useEffect(() => {
-    if (!user || authLoading) return;
+    if (!userId || authLoading) return;
     const client = supabase;
     if (!client || !isSupabaseConfigured) {
       setError("Supabase is not configured. Add the required environment variables to continue.");
@@ -148,15 +139,19 @@ function OnboardingPage() {
     const loadOnboardingData = async () => {
       setDataLoading(true);
       setError(null);
+      // This route starts a new character; only creator information is reused.
+      setCharacterId(null);
+      setSources([]);
+      setStep(0);
 
       const [profileResult, creatorResult] = await Promise.all([
-        client.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+        client.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
         client
           .from("creators")
           .select(
             "id, display_name, profession, bio, instagram_url, youtube_url, linkedin_url, website_url",
           )
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .maybeSingle(),
       ]);
 
@@ -169,29 +164,11 @@ function OnboardingPage() {
       }
 
       const creator = creatorResult.data;
-      let character: CharacterRow | null = null;
-      if (creator) {
-        const characterResult = await client
-          .from("characters")
-          .select("id, name, slug, tagline, description, avatar_url, personality, instructions")
-          .eq("creator_id", creator.id)
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        if (characterResult.error) {
-          if (mounted) {
-            setError("We couldn't load your character information. Please refresh and try again.");
-            setDataLoading(false);
-          }
-          return;
-        }
-        character = characterResult.data as CharacterRow | null;
-      }
 
       if (!mounted) return;
       setCreatorId(creator?.id ?? null);
-      setCharacterId(character?.id ?? null);
       setForm({
+        ...initialForm,
         fullName: profileResult.data?.full_name ?? "",
         displayName: creator?.display_name ?? "",
         profession: creator?.profession ?? "",
@@ -200,12 +177,6 @@ function OnboardingPage() {
         youtubeUrl: creator?.youtube_url ?? "",
         linkedinUrl: creator?.linkedin_url ?? "",
         websiteUrl: creator?.website_url ?? "",
-        characterName: character?.name ?? "",
-        tagline: character?.tagline ?? "",
-        description: character?.description ?? "",
-        avatarUrl: character?.avatar_url ?? "",
-        personality: character?.personality ?? "",
-        instructions: character?.instructions ?? "",
       });
       setDataLoading(false);
     };
@@ -214,12 +185,13 @@ function OnboardingPage() {
     return () => {
       mounted = false;
     };
-  }, [authLoading, user]);
+  }, [authLoading, userId]);
 
   useEffect(() => {
-    if (!characterId || !supabase || step !== 2) return;
+    if (!characterId || !supabase || (step !== 2 && step !== 4)) return;
     let mounted = true;
     setSourcesLoading(true);
+    setSourcesError(null);
     void supabase
       .from("knowledge_sources")
       .select(
@@ -230,6 +202,9 @@ function OnboardingPage() {
       .then(({ data, error: sourceError }) => {
         if (!mounted) return;
         if (sourceError) {
+          setSourcesError(
+            "Knowledge status could not be checked. Return to Add Knowledge to retry.",
+          );
           setError("We couldn't load your knowledge sources. Please try again.");
         } else {
           setSources((data ?? []) as KnowledgeSource[]);
@@ -305,7 +280,7 @@ function OnboardingPage() {
     return candidate;
   };
 
-  const saveCharacter = async (status: "draft" | "published", ownerId: string) => {
+  const saveCharacter = async (status: "published" | undefined, ownerId: string) => {
     if (!supabase) return;
     const slug = await getUniqueSlug(form.characterName, characterId);
     const characterPayload = {
@@ -317,7 +292,8 @@ function OnboardingPage() {
       avatar_url: form.avatarUrl.trim() || null,
       personality: form.personality.trim(),
       instructions: form.instructions.trim(),
-      status,
+      // Ordinary updates leave the stored publication status untouched.
+      ...(status ? { status } : characterId ? {} : { status: "draft" }),
     };
     const result = characterId
       ? await supabase
@@ -340,8 +316,8 @@ function OnboardingPage() {
     try {
       const ownerId = await saveCreator();
       if (!ownerId) throw new Error("We couldn't identify your creator account.");
-      if (form.characterName.trim()) await saveCharacter("draft", ownerId);
-      setNotice("Draft saved.");
+      if (form.characterName.trim()) await saveCharacter(undefined, ownerId);
+      setNotice("Changes saved.");
       return true;
     } catch (saveError) {
       setError(
@@ -356,7 +332,7 @@ function OnboardingPage() {
   };
 
   const loadCurrentCharacter = async () => {
-    if (!user || !supabase) return null;
+    if (!user || !supabase || !characterId) return null;
 
     const { data: sessionData } = await supabase.auth.getSession();
     const sessionUser = sessionData.session?.user;
@@ -372,9 +348,8 @@ function OnboardingPage() {
     const { data: character, error: characterError } = await supabase
       .from("characters")
       .select("id")
+      .eq("id", characterId)
       .eq("creator_id", creator.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
       .maybeSingle();
     if (characterError || !character) return null;
 
@@ -408,7 +383,6 @@ function OnboardingPage() {
       setKnowledgeBusy(false);
       return;
     }
-    setCharacterId(currentCharacter.characterId);
     const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
     const prefix = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}`;
     const uniqueFilename = `${prefix}-${safeFilename}`;
@@ -472,7 +446,7 @@ function OnboardingPage() {
         source_type: "text",
         title: noteTitle.trim(),
         text_content: noteText.trim(),
-        processing_status: "ready",
+        processing_status: "uploaded",
       })
       .select(
         "id, source_type, title, original_filename, storage_path, mime_type, file_size_bytes, processing_status",
@@ -484,7 +458,7 @@ function OnboardingPage() {
       setSources((current) => [data as KnowledgeSource, ...current]);
       setNoteTitle("");
       setNoteText("");
-      setNotice("Note saved.");
+      await processSource(data as KnowledgeSource);
     }
     setKnowledgeBusy(false);
   };
@@ -528,39 +502,54 @@ function OnboardingPage() {
         item.id === source.id ? { ...item, processing_status: "processing" } : item,
       ),
     );
-    const { data, error: invokeError } = await supabase.functions.invoke("process-knowledge", {
-      body: { knowledge_source_id: source.id },
-    });
-    if (invokeError || data?.error) {
-      setError("We couldn't process this source. You can try again.");
-      setSources((current) =>
-        current.map((item) =>
-          item.id === source.id ? { ...item, processing_status: "failed" } : item,
-        ),
-      );
-      const { data: refreshedSources } = await supabase
-        .from("knowledge_sources")
-        .select(
-          "id, source_type, title, original_filename, storage_path, mime_type, file_size_bytes, processing_status",
-        )
-        .eq("character_id", characterId)
-        .order("created_at", { ascending: false });
-      if (refreshedSources) setSources(refreshedSources as KnowledgeSource[]);
-    } else {
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("process-knowledge", {
+        body: { knowledge_source_id: source.id },
+      });
+      if (invokeError || data?.success !== true) {
+        throw new Error("Processing did not succeed.");
+      }
       setSources((current) =>
         current.map((item) =>
           item.id === source.id ? { ...item, processing_status: "ready" } : item,
         ),
       );
       setNotice(`Source processed into ${data?.chunk_count ?? 0} chunks.`);
+    } catch {
+      setError(`We couldn't process "${source.title}". Use Retry in Add Knowledge to try again.`);
+      setSources((current) =>
+        current.map((item) =>
+          item.id === source.id ? { ...item, processing_status: "failed" } : item,
+        ),
+      );
+    } finally {
+      setKnowledgeBusy(false);
     }
-    setKnowledgeBusy(false);
   };
 
   const continueStep = () => {
     if (step === onboardingSteps.length - 1) return;
     setStep((current) => current + 1);
   };
+
+  const canTest =
+    !!characterId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(characterId);
+  const testAI = async () => {
+    if (!canTest || !characterId || saving || knowledgeBusy) return;
+    if (await saveDraft()) {
+      await navigate({ to: "/chat/$id", params: { id: characterId } });
+    }
+  };
+  const knowledgeSummary = !characterId
+    ? "Save your character before adding knowledge."
+    : sourcesLoading
+      ? "Checking knowledge status..."
+      : sourcesError
+        ? sourcesError
+        : sources.length === 0
+          ? "No knowledge sources added."
+          : `${sources.filter((source) => source.processing_status === "ready").length} of ${sources.length} sources Ready. ${sources.filter((source) => source.processing_status === "uploaded").length} Uploaded; ${sources.filter((source) => source.processing_status === "processing").length} Processing; ${sources.filter((source) => source.processing_status === "failed").length} Failed. Process or retry unfinished sources in Add Knowledge.`;
 
   const publish = async (event: FormEvent) => {
     event.preventDefault();
@@ -728,8 +717,9 @@ function OnboardingPage() {
             <div className="space-y-6">
               <h2 className="text-xl font-bold">{onboardingSteps[step]}</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Add approved documents and notes your character can use later. Content processing
-                will be connected in the next backend step.
+                Add approved PDFs, TXT files, or notes. Process uploaded files to make them
+                available to your AI. Notes are processed automatically after saving. Ready means
+                processing succeeded; failed sources can be retried.
               </p>
               {!characterId ? (
                 <div className="rounded-xl border border-dashed border-border bg-secondary/50 p-6 text-center">
@@ -761,7 +751,7 @@ function OnboardingPage() {
                           accept="application/pdf,text/plain,.pdf,.txt"
                           className="sr-only"
                           onChange={uploadFile}
-                          disabled={knowledgeBusy}
+                          disabled={knowledgeBusy || sourcesLoading}
                         />
                       </label>
                     </div>
@@ -786,7 +776,7 @@ function OnboardingPage() {
                         <Button
                           variant="outline"
                           onClick={() => void saveNote()}
-                          disabled={knowledgeBusy}
+                          disabled={knowledgeBusy || sourcesLoading}
                         >
                           {knowledgeBusy ? "Saving..." : "Save note"}
                         </Button>
@@ -881,6 +871,43 @@ function OnboardingPage() {
                 <Review label="Personality" value={form.personality} />
                 <Review label="Instructions" value={form.instructions} />
               </div>
+              <h3 className="mt-6 font-semibold">Readiness</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Review
+                  label="Character details"
+                  value={
+                    form.characterName.trim()
+                      ? characterId
+                        ? "Character saved. Save changes before testing."
+                        : "Character details entered; save to enable testing."
+                      : "Add a character name before publishing."
+                  }
+                />
+                <Review label="Knowledge" value={knowledgeSummary} />
+                <Review
+                  label="Personality/instructions"
+                  value={`Personality ${form.personality.trim() ? "provided" : "not provided"}; instructions ${form.instructions.trim() ? "provided" : "not provided"}.`}
+                />
+                <Review
+                  label="Test AI"
+                  value={
+                    canTest
+                      ? "Test your saved character in chat before publishing. Test AI saves your current edits without changing publication status."
+                      : "Save your character to enable Test AI."
+                  }
+                />
+              </div>
+              {canTest ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => void testAI()}
+                  disabled={saving || knowledgeBusy || sourcesLoading}
+                >
+                  Test AI
+                </Button>
+              ) : null}
               <p className="mt-6 text-sm text-muted-foreground">
                 Publishing makes this character available as a published creator profile.
               </p>
@@ -892,25 +919,27 @@ function OnboardingPage() {
                 <Button
                   variant="outline"
                   onClick={() => setStep((value) => value - 1)}
-                  disabled={saving}
+                  disabled={saving || knowledgeBusy}
                 >
                   Back
                 </Button>
               ) : (
                 <span />
               )}
-              {step < onboardingSteps.length - 1 ? (
-                <Button variant="outline" onClick={() => void saveDraft()} disabled={saving}>
-                  {saving ? "Saving..." : "Save draft"}
-                </Button>
-              ) : null}
+              <Button
+                variant="outline"
+                onClick={() => void saveDraft()}
+                disabled={saving || knowledgeBusy}
+              >
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
             </div>
             {step < onboardingSteps.length - 1 ? (
-              <Button onClick={() => void continueStep()} disabled={saving}>
+              <Button onClick={() => void continueStep()} disabled={saving || knowledgeBusy}>
                 {saving ? "Saving..." : "Continue"} <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={publish} disabled={saving}>
+              <Button onClick={publish} disabled={saving || knowledgeBusy}>
                 {saving ? "Publishing..." : "Publish character"} <Check className="h-4 w-4" />
               </Button>
             )}

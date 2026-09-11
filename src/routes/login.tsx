@@ -3,7 +3,7 @@ import { ArrowRight, Chrome, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SiteLayout } from "@/components/SiteLayout";
 import { Button, Card, Field } from "@/components/ui/primitives";
-import { useAuth } from "@/lib/auth";
+import { resolveAuthDestination, useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
@@ -13,10 +13,30 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const userId = user?.id;
 
   useEffect(() => {
-    if (user) void navigate({ to: "/explore" });
-  }, [navigate, user]);
+    if (loading || !userId) return;
+    let active = true;
+    setAccountError(null);
+    void resolveAuthDestination(userId, window.location.search)
+      .then((to) => {
+        if (active) void navigate({ to, replace: true });
+      })
+      .catch((failure) => {
+        if (active)
+          setAccountError(
+            failure instanceof Error
+              ? failure.message
+              : "We couldn't resolve your account. Please retry.",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [loading, userId, navigate, retry]);
 
   const handleMagicLink = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,6 +55,29 @@ function LoginPage() {
     const result = await signInWithGoogle();
     if (result.error) setSubmitting(false);
   };
+  if (loading || userId) {
+    return (
+      <SiteLayout>
+        <div className="mx-auto max-w-md px-4 py-12 sm:py-20">
+          <Card className="p-6 sm:p-8">
+            <h1 className="text-2xl font-bold">Finishing sign-in</h1>
+            {accountError ? (
+              <>
+                <p role="alert" className="mt-4 text-sm text-destructive">
+                  {accountError}
+                </p>
+                <Button className="mt-5" onClick={() => setRetry((value) => value + 1)}>
+                  Retry
+                </Button>
+              </>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">Checking your account...</p>
+            )}
+          </Card>
+        </div>
+      </SiteLayout>
+    );
+  }
   return (
     <SiteLayout>
       <div className="mx-auto max-w-md px-4 py-12 sm:py-20">

@@ -1,17 +1,9 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, CircleDollarSign, FileText, MessageSquare, Sparkles } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { ArrowRight, FileText, MessageSquare, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { creatorNavItems, PageHeader } from "@/components/CreatorNav";
 import { DashShell } from "@/components/DashShell";
 import { Card, StatsCard } from "@/components/ui/primitives";
-import {
-  analyticsSeries,
-  dashboardStats,
-  earnings,
-  getCharacter,
-  knowledgeSources,
-  recentActivity,
-} from "@/data/mock";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
@@ -37,72 +29,202 @@ const creatorPages: Record<string, ReactNode> = {
 };
 
 function DashboardPage() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading your dashboard...
+      </p>
+    );
+  }
+  return <DashboardContent key={user?.id ?? "signed-out"} userId={user?.id} />;
+}
+
+type DashboardCharacter = Pick<CreatorCharacter, "id" | "name" | "status">;
+
+function DashboardContent({ userId }: { userId: string | undefined }) {
+  const [characters, setCharacters] = useState<DashboardCharacter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadDashboard = async () => {
+      setLoading(true);
+      setError(null);
+      setCharacters([]);
+      try {
+        if (!userId) throw new Error("Sign in to view your creator dashboard.");
+        if (!supabase)
+          throw new Error("Your dashboard is unavailable because Supabase is not configured.");
+        const { data: creator, error: creatorError } = await supabase
+          .from("creators")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (!mounted) return;
+        if (creatorError)
+          throw new Error("We couldn't load your creator account. Please try again.");
+        if (!creator) return;
+
+        // Fetch every page so Supabase's response limit does not truncate the counts.
+        const allCharacters: DashboardCharacter[] = [];
+        const pageSize = 500;
+        let offset = 0;
+        while (mounted) {
+          const { data, error: characterError } = await supabase
+            .from("characters")
+            .select("id, name, status")
+            .eq("creator_id", creator.id)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(offset, offset + pageSize - 1);
+          if (!mounted) return;
+          if (characterError)
+            throw new Error("We couldn't load your characters. Please try again.");
+          const rows = (data ?? []) as DashboardCharacter[];
+          if (rows.length === 0) break;
+          allCharacters.push(...rows);
+          offset += rows.length;
+        }
+        if (mounted) setCharacters(allCharacters);
+      } catch (cause) {
+        if (mounted)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "We couldn't load your dashboard. Please try again.",
+          );
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    void loadDashboard();
+    return () => {
+      mounted = false;
+    };
+  }, [userId, attempt]);
+
   return (
     <>
       <PageHeader
         title="Creator dashboard"
-        subtitle="A quick view of how your AI character is helping people."
+        subtitle="Your AI characters at a glance."
         action={
+          <Link
+            to="/creator/onboarding"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Create new AI <Sparkles className="h-4 w-4" />
+          </Link>
+        }
+      />
+      <Card className="mt-8 p-5 sm:p-6">
+        <h2 className="font-semibold">Quick actions</h2>
+        <div className="mt-4 flex flex-wrap gap-5">
           <Link
             to="/creator/character"
             className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary-deep"
           >
-            Edit character <ArrowRight className="h-4 w-4" />
+            Manage characters <ArrowRight className="h-4 w-4" />
           </Link>
-        }
-      />
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {dashboardStats.map((stat) => (
-          <StatsCard key={stat.label} {...stat} />
-        ))}
-      </div>
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="p-5 sm:p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Recent activity</h2>
-            <Link to="/creator/conversations" className="text-sm font-semibold text-primary">
-              View all
-            </Link>
-          </div>
-          <div className="mt-5 divide-y divide-border">
-            {recentActivity.map((item) => (
-              <div key={item.title} className="flex gap-3 py-4 first:pt-0 last:pb-0">
-                <span className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
-                  <MessageSquare className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{item.title}</p>
-                  <p className="mt-1 truncate text-sm text-muted-foreground">{item.body}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-5 sm:p-6">
-          <h2 className="font-semibold">Character status</h2>
-          <div className="mt-5 flex items-center gap-4">
-            <img
-              src={getCharacter("rahul-sharma").photo}
-              alt="Rahul AI"
-              className="h-16 w-16 rounded-2xl object-cover object-top"
-            />
-            <div>
-              <p className="font-semibold">Rahul AI</p>
-              <p className="mt-1 text-sm text-muted-foreground">Entrepreneur &amp; Investor</p>
-              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-success-soft px-2.5 py-1 text-xs font-semibold text-success">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" /> Published
-              </span>
-            </div>
-          </div>
           <Link
-            to="/creator/character"
-            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary"
+            to="/creator/conversations"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary-deep"
           >
-            Manage character <ArrowRight className="h-4 w-4" />
+            View conversations <MessageSquare className="h-4 w-4" />
           </Link>
+        </div>
+      </Card>
+      {loading ? (
+        <p role="status" className="mt-8 text-sm text-muted-foreground">
+          Loading your dashboard...
+        </p>
+      ) : error ? (
+        <Card className="mt-8 p-6">
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+          <button
+            type="button"
+            onClick={() => setAttempt((current) => current + 1)}
+            className="mt-4 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Try again
+          </button>
         </Card>
-      </div>
+      ) : (
+        <>
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            <StatsCard label="Total characters" value={String(characters.length)} />
+            <StatsCard
+              label="Published characters"
+              value={String(
+                characters.filter((character) => character.status === "published").length,
+              )}
+            />
+            <StatsCard
+              label="Draft characters"
+              value={String(characters.filter((character) => character.status === "draft").length)}
+            />
+          </div>
+          <Card className="mt-8 p-5 sm:p-6">
+            <h2 className="font-semibold">Recent characters</h2>
+            {characters.length === 0 ? (
+              <div className="mt-5 text-center">
+                <p className="text-sm text-muted-foreground">
+                  You haven't created an AI character yet.
+                </p>
+                <Link
+                  to="/creator/onboarding"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  Create AI
+                </Link>
+              </div>
+            ) : (
+              <div className="mt-5 divide-y divide-border">
+                {characters.slice(0, 5).map((character) => (
+                  <div
+                    key={character.id}
+                    className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-semibold">
+                        {character.name?.trim() || "AI character"}
+                      </p>
+                      <span
+                        className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${character.status === "published" ? "bg-success-soft text-success" : "bg-secondary text-muted-foreground"}`}
+                      >
+                        {character.status === "published" ? "Published" : "Draft"}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 gap-4">
+                      <Link
+                        to="/chat/$id"
+                        params={{ id: character.id }}
+                        className="text-sm font-semibold text-primary hover:text-primary-deep"
+                      >
+                        Test AI
+                      </Link>
+                      {character.status === "published" ? (
+                        <Link
+                          to="/character/$id"
+                          params={{ id: character.id }}
+                          className="text-sm font-semibold text-primary hover:text-primary-deep"
+                        >
+                          View profile
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
     </>
   );
 }
@@ -119,17 +241,20 @@ type CreatorCharacter = {
 function CharacterPage() {
   const { user, loading: authLoading } = useAuth();
   const [creatorId, setCreatorId] = useState<string | null>(null);
-  const [character, setCharacter] = useState<CreatorCharacter | null>(null);
+  const [characters, setCharacters] = useState<CreatorCharacter[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
-    const loadCharacter = async () => {
+    const loadCharacters = async () => {
       if (authLoading) return;
+      setCharacters([]);
+      setCreatorId(null);
+      setNotice(null);
       if (!user || !supabase) {
         if (mounted) {
           setError("Sign in to manage your character.");
@@ -145,6 +270,7 @@ function CharacterPage() {
         .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (!mounted) return;
       if (creatorError) {
         if (mounted) {
           setError("We couldn't load your creator account. Please try again.");
@@ -154,37 +280,34 @@ function CharacterPage() {
       }
       if (!creator) {
         if (mounted) {
-          setError("Create a character before managing its publication status.");
           setLoading(false);
         }
         return;
       }
       setCreatorId(creator.id);
 
-      const { data: characterRecord, error: characterError } = await supabase
+      const { data: characterRecords, error: characterError } = await supabase
         .from("characters")
         .select("id, name, tagline, description, avatar_url, status")
         .eq("creator_id", creator.id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+        .order("created_at", { ascending: false });
       if (!mounted) return;
-      if (characterError || !characterRecord) {
-        setError("We couldn't load your character. Please try again.");
+      if (characterError) {
+        setError("We couldn't load your characters. Please try again.");
       } else {
-        setCharacter(characterRecord as CreatorCharacter);
+        setCharacters((characterRecords ?? []) as CreatorCharacter[]);
       }
       setLoading(false);
     };
 
-    void loadCharacter();
+    void loadCharacters();
     return () => {
       mounted = false;
     };
   }, [authLoading, user]);
 
-  const updateStatus = async () => {
-    if (!character || !creatorId || !supabase || !user || updating) return;
+  const updateStatus = async (character: CreatorCharacter) => {
+    if (!creatorId || !supabase || !user || updatingId) return;
     const nextStatus = character.status === "published" ? "draft" : "published";
     if (
       nextStatus === "draft" &&
@@ -193,45 +316,38 @@ function CharacterPage() {
       return;
     }
 
-    setUpdating(true);
+    setUpdatingId(character.id);
     setError(null);
     setNotice(null);
-    const { error: updateError } = await supabase
-      .from("characters")
-      .update({ status: nextStatus })
-      .eq("id", character.id)
-      .eq("creator_id", creatorId);
-    if (updateError) {
+    try {
+      const { error: updateError } = await supabase
+        .from("characters")
+        .update({ status: nextStatus })
+        .eq("id", character.id)
+        .eq("creator_id", creatorId);
+      if (updateError) throw updateError;
+      setCharacters((current) =>
+        current.map((item) => (item.id === character.id ? { ...item, status: nextStatus } : item)),
+      );
+      setNotice(
+        `${character.name?.trim() || "Character"} ${nextStatus === "published" ? "published" : "unpublished"}.`,
+      );
+    } catch {
       setError("We couldn't update your character's publication status. Please try again.");
-    } else {
-      setCharacter((current) => (current ? { ...current, status: nextStatus } : current));
-      setNotice(nextStatus === "published" ? "Character published." : "Character unpublished.");
+    } finally {
+      setUpdatingId(null);
     }
-    setUpdating(false);
   };
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading your character...</p>;
+    return <p className="text-sm text-muted-foreground">Loading your characters...</p>;
   }
-
-  if (!character) {
-    return <p className="text-sm text-destructive">{error ?? "Character not found."}</p>;
-  }
-
-  const characterName = character.name?.trim() || "AI character";
-  const initials =
-    characterName
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "AI";
 
   return (
     <>
       <PageHeader
-        title="My character"
-        subtitle="Shape how your AI character represents your expertise."
+        title="My characters"
+        subtitle="Manage the AI characters that represent your expertise."
         action={
           <Link
             to="/creator/onboarding"
@@ -241,81 +357,435 @@ function CharacterPage() {
           </Link>
         }
       />
-      <Card className="mt-8 p-6">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          {character.avatar_url ? (
-            <img
-              src={character.avatar_url}
-              alt={characterName}
-              className="h-24 w-24 rounded-2xl object-cover object-top"
-            />
-          ) : (
-            <div className="grid h-24 w-24 place-items-center rounded-2xl bg-primary-soft text-2xl font-bold text-primary-deep">
-              {initials}
+      {!error && characters.length === 0 ? (
+        <Card className="mt-8 p-6 text-center">
+          <p className="text-sm text-muted-foreground">You haven't created an AI character yet.</p>
+          <Link
+            to="/creator/onboarding"
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Create your first AI
+          </Link>
+        </Card>
+      ) : null}
+      {characters.map((character) => {
+        const characterName = character.name?.trim() || "AI character";
+        const initials =
+          characterName
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase())
+            .join("") || "AI";
+        return (
+          <Card key={character.id} className="mt-8 p-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              {character.avatar_url ? (
+                <img
+                  src={character.avatar_url}
+                  alt={characterName}
+                  className="h-24 w-24 rounded-2xl object-cover object-top"
+                />
+              ) : (
+                <div className="grid h-24 w-24 place-items-center rounded-2xl bg-primary-soft text-2xl font-bold text-primary-deep">
+                  {initials}
+                </div>
+              )}
+              <div className="flex-1">
+                <h2 className="text-xl font-bold">{characterName}</h2>
+                {character.tagline ? (
+                  <p className="mt-1 text-sm text-muted-foreground">{character.tagline}</p>
+                ) : null}
+                <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+                  {character.description}
+                </p>
+              </div>
+              <div className="flex flex-col items-start gap-3 sm:items-end">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  {character.status === "published" ? "Published" : "Draft"}
+                </span>
+                <Link
+                  to="/chat/$id"
+                  params={{ id: character.id }}
+                  className="text-sm font-semibold text-primary hover:text-primary-deep"
+                >
+                  Test AI
+                </Link>
+                {character.status === "published" ? (
+                  <Link
+                    to="/character/$id"
+                    params={{ id: character.id }}
+                    className="text-sm font-semibold text-primary hover:text-primary-deep"
+                  >
+                    View profile
+                  </Link>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void updateStatus(character)}
+                  disabled={updatingId !== null}
+                  className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {updatingId === character.id
+                    ? "Updating..."
+                    : character.status === "published"
+                      ? "Unpublish character"
+                      : "Publish character"}
+                </button>
+              </div>
             </div>
-          )}
-          <div className="flex-1">
-            <h2 className="text-xl font-bold">{characterName}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {character.tagline ?? "AI character"}
-            </p>
-            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{character.description}</p>
-          </div>
-          <div className="flex flex-col items-start gap-3 sm:items-end">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              {character.status === "published" ? "Published" : "Draft"}
-            </span>
-            <button
-              type="button"
-              onClick={() => void updateStatus()}
-              disabled={updating}
-              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:pointer-events-none disabled:opacity-50"
-            >
-              {updating
-                ? "Updating..."
-                : character.status === "published"
-                  ? "Unpublish character"
-                  : "Publish character"}
-            </button>
-          </div>
-        </div>
-      </Card>
+          </Card>
+        );
+      })}
       {notice ? <p className="mt-3 text-sm text-success">{notice}</p> : null}
       {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
     </>
   );
 }
 
+type WorkspaceKnowledgeSource = {
+  id: string;
+  character_id: string;
+  title: string | null;
+  source_type: string;
+  original_filename: string | null;
+  processing_status: "uploaded" | "processing" | "ready" | "failed";
+  processing_error: string | null;
+  created_at: string;
+};
+
+const knowledgeFields =
+  "id, character_id, title, source_type, original_filename, processing_status, processing_error, created_at";
+
+function knowledgeErrorMessage(error: string | null) {
+  // Only display known public messages; parser/provider errors may contain private details.
+  const safeMessages = [
+    "This source type is not supported for processing yet.",
+    "Only plain text documents are supported for processing right now.",
+    "This file does not have a stored source path.",
+    "We couldn't download this private knowledge file.",
+    "We couldn't find readable text in this PDF.",
+    "We couldn't find readable text in this source.",
+    "We couldn't generate embeddings for this knowledge source.",
+    "We couldn't generate valid embeddings for this knowledge source.",
+    "Knowledge embeddings are not configured.",
+  ];
+  return error && safeMessages.includes(error)
+    ? error
+    : "Processing failed. Retry this source or add a supported file with readable text.";
+}
+
 function KnowledgePage() {
+  const { user, loading } = useAuth();
+  if (loading)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading your knowledge...
+      </p>
+    );
+  return <KnowledgeContent key={user?.id ?? "signed-out"} userId={user?.id} />;
+}
+
+function KnowledgeContent({ userId }: { userId: string | undefined }) {
+  const [characters, setCharacters] = useState<Pick<CreatorCharacter, "id" | "name">[]>([]);
+  const [sources, setSources] = useState<WorkspaceKnowledgeSource[]>([]);
+  const [filter, setFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [processing, setProcessing] = useState<string[]>([]);
+  const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({});
+  const active = useRef(false);
+  const inFlight = useRef(new Set<string>());
+
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadKnowledge = async () => {
+      setLoading(true);
+      setError(null);
+      setCharacters([]);
+      setSources([]);
+      setSourceErrors({});
+      try {
+        if (!userId) throw new Error("Sign in to view your knowledge sources.");
+        if (!supabase)
+          throw new Error("Knowledge is unavailable because Supabase is not configured.");
+        const { data: creator, error: creatorError } = await supabase
+          .from("creators")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (!mounted) return;
+        if (creatorError)
+          throw new Error("We couldn't load your creator account. Please try again.");
+        if (!creator) return;
+
+        const owned: Pick<CreatorCharacter, "id" | "name">[] = [];
+        for (let offset = 0; mounted;) {
+          const { data, error: queryError } = await supabase
+            .from("characters")
+            .select("id, name")
+            .eq("creator_id", creator.id)
+            .order("id")
+            .range(offset, offset + 499);
+          if (!mounted) return;
+          if (queryError) throw new Error("We couldn't load your characters. Please try again.");
+          if (!data?.length) break;
+          owned.push(...data);
+          offset += data.length;
+        }
+        const records: WorkspaceKnowledgeSource[] = [];
+        // Bound the ID filter size and paginate each batch to include every owned source.
+        for (let batch = 0; batch < owned.length; batch += 100) {
+          const ids = owned.slice(batch, batch + 100).map((character) => character.id);
+          for (let offset = 0; mounted;) {
+            const { data, error: queryError } = await supabase
+              .from("knowledge_sources")
+              .select(knowledgeFields)
+              .in("character_id", ids)
+              .order("created_at", { ascending: false })
+              .order("id", { ascending: false })
+              .range(offset, offset + 499);
+            if (!mounted) return;
+            if (queryError)
+              throw new Error("We couldn't load your knowledge sources. Please try again.");
+            if (!data?.length) break;
+            records.push(...(data as WorkspaceKnowledgeSource[]));
+            offset += data.length;
+          }
+        }
+        records.sort(
+          (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id.localeCompare(a.id),
+        );
+        if (mounted) {
+          setCharacters(owned);
+          setSources(records);
+          setFilter((current) =>
+            owned.some((character) => character.id === current) ? current : "",
+          );
+        }
+      } catch (cause) {
+        if (mounted)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "We couldn't load your knowledge. Please try again.",
+          );
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    void loadKnowledge();
+    return () => {
+      mounted = false;
+    };
+  }, [userId, attempt]);
+
+  const processSource = async (source: WorkspaceKnowledgeSource) => {
+    if (
+      !supabase ||
+      !userId ||
+      inFlight.current.has(source.id) ||
+      !characters.some((character) => character.id === source.character_id) ||
+      (source.processing_status !== "uploaded" && source.processing_status !== "failed")
+    )
+      return;
+    inFlight.current.add(source.id);
+    setProcessing([...inFlight.current]);
+    setSourceErrors((current) => ({ ...current, [source.id]: "" }));
+    let actionError = "";
+    try {
+      try {
+        const { data, error: invokeError } = await supabase.functions.invoke("process-knowledge", {
+          body: { knowledge_source_id: source.id },
+        });
+        if (invokeError || data?.error)
+          actionError =
+            "Processing could not complete. Check the status below and retry when available.";
+      } catch {
+        actionError = "The processing request could not be confirmed. Refresh to check its status.";
+      }
+      if (!active.current) return;
+      // Read the persisted status even when invocation fails; never assume Ready or Failed.
+      const { data, error: refreshError } = await supabase
+        .from("knowledge_sources")
+        .select(knowledgeFields)
+        .eq("id", source.id)
+        .eq("character_id", source.character_id)
+        .maybeSingle();
+      if (refreshError) throw refreshError;
+      if (!active.current) return;
+      if (data) {
+        const refreshed = data as WorkspaceKnowledgeSource;
+        setSources((current) => current.map((item) => (item.id === source.id ? refreshed : item)));
+        if (refreshed.processing_status === "ready") actionError = "";
+      } else {
+        setSources((current) => current.filter((item) => item.id !== source.id));
+        actionError = "This source is no longer available. Refresh the knowledge list.";
+      }
+      setSourceErrors((current) => ({ ...current, [source.id]: actionError }));
+    } catch {
+      if (active.current)
+        setSourceErrors((current) => ({
+          ...current,
+          [source.id]:
+            "We couldn't refresh this source. Its displayed status may be outdated; refresh before retrying.",
+        }));
+    } finally {
+      inFlight.current.delete(source.id);
+      if (active.current) setProcessing([...inFlight.current]);
+    }
+  };
+
+  const visibleSources = filter
+    ? sources.filter((source) => source.character_id === filter)
+    : sources;
+  const names = new Map(
+    characters.map((character) => [character.id, character.name?.trim() || "AI character"]),
+  );
+  const statuses = {
+    uploaded: "Uploaded",
+    processing: "Processing",
+    ready: "Ready",
+    failed: "Failed",
+  };
   return (
     <>
       <PageHeader
         title="Knowledge"
-        subtitle="The sources your character can draw from."
+        subtitle="Approved sources for your AI characters."
         action={
-          <button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white">
-            Add source
-          </button>
+          <Link
+            to="/creator/onboarding"
+            className="inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Add knowledge
+          </Link>
         }
       />
-      <Card className="mt-8 overflow-hidden">
-        <div className="divide-y divide-border">
-          {knowledgeSources.map((source) => (
-            <div key={source.name} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
-                <FileText className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{source.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {source.type} · {source.size} · Updated {source.updated}
-                </p>
-              </div>
-              <span className="text-xs font-semibold text-success">{source.status}</span>
-            </div>
-          ))}
-        </div>
+      <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
+        {characters.length > 1 ? (
+          <label className="text-sm font-medium">
+            <span className="mb-1.5 block">Character</span>
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              className="h-11 max-w-full rounded-xl border border-input bg-card px-3.5 text-sm"
+            >
+              <option value="">All characters</option>
+              {characters.map((character) => (
+                <option key={character.id} value={character.id}>
+                  {character.name?.trim() || "AI character"}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <button
+          type="button"
+          disabled={loading || processing.length > 0}
+          onClick={() => setAttempt((current) => current + 1)}
+          className="text-sm font-semibold text-primary disabled:opacity-50"
+        >
+          Refresh
+        </button>
+      </div>
+      <Card className="mt-4 overflow-hidden">
+        {loading ? (
+          <p role="status" className="p-6 text-sm text-muted-foreground">
+            Loading your knowledge...
+          </p>
+        ) : error ? (
+          <div className="p-6">
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={() => setAttempt((current) => current + 1)}
+              className="mt-4 text-sm font-semibold text-primary"
+            >
+              Try again
+            </button>
+          </div>
+        ) : visibleSources.length === 0 ? (
+          <p className="p-6 text-sm text-muted-foreground">
+            {sources.length === 0
+              ? "No knowledge sources yet. Add approved knowledge to train your AI."
+              : "No knowledge sources for this character yet."}
+          </p>
+        ) : (
+          <div className="divide-y divide-border">
+            {visibleSources.map((source) => {
+              const busy = processing.includes(source.id);
+              return (
+                <div key={source.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
+                    <FileText className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-semibold">
+                      {source.title?.trim() || "Untitled source"}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {names.get(source.character_id)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Type: {source.source_type} ? Added {formatConversationTime(source.created_at)}
+                    </p>
+                    {source.original_filename ? (
+                      <p className="mt-1 break-words text-xs text-muted-foreground">
+                        File: {source.original_filename}
+                      </p>
+                    ) : null}
+                    {source.processing_status === "failed" && !busy ? (
+                      <p className="mt-2 text-sm text-destructive">
+                        {knowledgeErrorMessage(source.processing_error)}
+                      </p>
+                    ) : null}
+                    {sourceErrors[source.id] ? (
+                      <p role="alert" className="mt-2 text-sm text-destructive">
+                        {sourceErrors[source.id]}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span
+                      role="status"
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${source.processing_status === "ready" && !busy ? "bg-success-soft text-success" : source.processing_status === "failed" && !busy ? "bg-secondary text-destructive" : "bg-primary-soft text-primary"}`}
+                    >
+                      {busy ? "Processing" : (statuses[source.processing_status] ?? "Unknown")}
+                    </span>
+                    {busy ||
+                    source.processing_status === "uploaded" ||
+                    source.processing_status === "failed" ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void processSource(source)}
+                        className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                      >
+                        {busy
+                          ? "Processing..."
+                          : source.processing_status === "failed"
+                            ? "Retry"
+                            : "Process"}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
     </>
   );
@@ -527,35 +997,14 @@ function ConversationsPage() {
 }
 
 function AnalyticsPage() {
-  const max = Math.max(...analyticsSeries.map((item) => item.chats));
   return (
     <>
-      <PageHeader title="Analytics" subtitle="Weekly engagement across chat and voice." />
+      <PageHeader title="Analytics" />
       <Card className="mt-8 p-5 sm:p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Conversations this week</h2>
-          <span className="text-sm text-muted-foreground">Chat + voice</span>
-        </div>
-        <div className="mt-8 flex h-56 items-end gap-2 sm:gap-4">
-          {analyticsSeries.map((item) => (
-            <div
-              key={item.label}
-              className="flex h-full flex-1 flex-col items-center justify-end gap-2"
-            >
-              <div className="flex h-full w-full items-end justify-center gap-1">
-                <div
-                  className="w-1/2 rounded-t-md bg-primary"
-                  style={{ height: `${(item.chats / max) * 100}%` }}
-                />
-                <div
-                  className="w-1/2 rounded-t-md bg-indigo/40"
-                  style={{ height: `${(item.voice / max) * 100}%` }}
-                />
-              </div>
-              <span className="text-xs text-muted-foreground">{item.label}</span>
-            </div>
-          ))}
-        </div>
+        <h2 className="font-semibold">Analytics is coming soon</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Soon you'll be able to see conversations, engagement, and usage for your AI characters.
+        </p>
       </Card>
     </>
   );
@@ -564,28 +1013,12 @@ function AnalyticsPage() {
 function EarningsPage() {
   return (
     <>
-      <PageHeader title="Earnings" subtitle="Track your character's conversation earnings." />
-      <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        <StatsCard value="₹24,500" label="This month" change="+9%" />
-        <StatsCard value="₹80,450" label="Total paid" />
-        <StatsCard value="412" label="Paid sessions" />
-      </div>
-      <Card className="mt-6 overflow-hidden">
-        <div className="divide-y divide-border">
-          {earnings.map((item) => (
-            <div key={item.month} className="flex items-center gap-4 p-5">
-              <CircleDollarSign className="h-5 w-5 text-primary" />
-              <div className="flex-1">
-                <p className="font-semibold">{item.month}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{item.sessions} sessions</p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold">{item.amount}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{item.status}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <PageHeader title="Earnings" />
+      <Card className="mt-8 p-5 sm:p-6">
+        <h2 className="font-semibold">Earnings is coming soon</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Monetization and creator payouts will be added in a future MindLink release.
+        </p>
       </Card>
     </>
   );
@@ -594,31 +1027,9 @@ function EarningsPage() {
 function SettingsPage() {
   return (
     <>
-      <PageHeader title="Settings" subtitle="Manage your creator workspace preferences." />
-      <Card className="mt-8 max-w-2xl p-6">
-        <div className="space-y-5">
-          <label className="flex items-center justify-between gap-4">
-            <span>
-              <span className="block text-sm font-semibold">Public character profile</span>
-              <span className="mt-1 block text-sm text-muted-foreground">
-                Let people discover Rahul AI on Explore.
-              </span>
-            </span>
-            <input type="checkbox" defaultChecked className="h-5 w-5 accent-primary" />
-          </label>
-          <label className="flex items-center justify-between gap-4">
-            <span>
-              <span className="block text-sm font-semibold">Conversation notifications</span>
-              <span className="mt-1 block text-sm text-muted-foreground">
-                Receive a digest of new activity.
-              </span>
-            </span>
-            <input type="checkbox" defaultChecked className="h-5 w-5 accent-primary" />
-          </label>
-          <button className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white">
-            Save settings
-          </button>
-        </div>
+      <PageHeader title="Settings" />
+      <Card className="mt-8 p-5 sm:p-6">
+        <h2 className="font-semibold">Settings coming soon</h2>
       </Card>
     </>
   );

@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Phone, Send, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AssistantMessage } from "@/components/AssistantMessage";
 import { SiteLayout } from "@/components/SiteLayout";
-import { Button, Card } from "@/components/ui/primitives";
+import { Button, Card, buttonVariants } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
@@ -222,6 +222,15 @@ function ChatPage() {
   const subtitle =
     character.tagline ?? character.description ?? character.creators?.profession ?? "AI character";
 
+  const startNewChat = () => {
+    if (sending || authLoading || !user) return;
+    setConversationId(null);
+    setMessages([]);
+    setDraft("");
+    setError(null);
+    setHistoryError(null);
+  };
+
   const send = async (text: string) => {
     const message = text.trim();
     if (!message || sending) return;
@@ -287,7 +296,7 @@ function ChatPage() {
                 {characterInitials(characterName)}
               </div>
             )}
-            <div>
+            <div className="min-w-0 flex-1">
               <h1 className="font-bold">Chat with {characterName}</h1>
               <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" /> {subtitle}
@@ -296,6 +305,23 @@ function ChatPage() {
                 AI character based on {creatorName}'s approved knowledge.
               </p>
             </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={startNewChat}
+              disabled={sending || authLoading || !user}
+            >
+              New Chat
+            </Button>
+            <Link
+              to="/voice/$id"
+              params={{ id: character.id }}
+              className={`${buttonVariants({ size: "sm", variant: "outline" })} shrink-0`}
+            >
+              <Phone className="h-4 w-4" /> Voice
+            </Link>
           </div>
           <div className="flex-1 space-y-5 py-6">
             {messages.map((message, index) => (

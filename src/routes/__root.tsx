@@ -10,6 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import { Toaster } from "sonner";
+import { CreatorRouteGuard } from "@/components/CreatorRouteGuard";
 
 import appCss from "../styles.css?url";
 import { AuthProvider } from "../lib/auth";
@@ -139,7 +140,9 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
+        <CreatorRouteGuard>
+          <Outlet />
+        </CreatorRouteGuard>
         <Toaster position="top-center" richColors />
       </AuthProvider>
     </QueryClientProvider>

@@ -1,14 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, MessageSquare, Play, Sparkles } from "lucide-react";
 import { SiteLayout } from "@/components/SiteLayout";
-import { CharacterCard } from "@/components/CharacterCard";
-import { Button, Card, Pill, SectionHeading } from "@/components/ui/primitives";
-import { categories, characters, howItWorks, platformStats } from "@/data/mock";
+import { CharacterCard, type MarketplaceCharacter } from "@/components/CharacterCard";
+import { Button, Card, SectionHeading } from "@/components/ui/primitives";
+import { howItWorks, platformStats } from "@/data/mock";
+import { supabase } from "@/lib/supabase";
 import rahul from "@/assets/creator-rahul.jpg";
-import priya from "@/assets/creator-priya.jpg";
-import alex from "@/assets/creator-alex.jpg";
-import sneha from "@/assets/creator-sneha.jpg";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -22,7 +20,8 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "MindLink — Meet the AI behind people you trust" },
       {
         property: "og:description",
-        content: "An AI-powered personal-brand interaction marketplace. Chat or talk with expert AI characters.",
+        content:
+          "An AI-powered personal-brand interaction marketplace. Chat or talk with expert AI characters.",
       },
     ],
   }),
@@ -30,9 +29,43 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
-  const [category, setCategory] = useState("All");
-  const filtered =
-    category === "All" ? characters : characters.filter((c) => c.category === category);
+  const [characters, setCharacters] = useState<MarketplaceCharacter[]>([]);
+  const [charactersLoading, setCharactersLoading] = useState(true);
+  const [charactersError, setCharactersError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCharacters = async () => {
+      if (!supabase) {
+        setCharactersError("AI characters are not available right now.");
+        setCharactersLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("characters")
+        .select("id, name, tagline, description, avatar_url, status, created_at")
+        .eq("status", "published")
+        .order("created_at", { ascending: false });
+      if (!mounted) return;
+      if (error) {
+        setCharactersError(
+          "We couldn't load live AI characters. Please visit Explore to try again.",
+        );
+      } else {
+        setCharacters((data ?? []) as MarketplaceCharacter[]);
+      }
+      setCharactersLoading(false);
+    };
+
+    void loadCharacters();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const featuredCharacters = useMemo(() => characters.slice(0, 6), [characters]);
 
   return (
     <SiteLayout>
@@ -85,38 +118,22 @@ function Landing() {
             <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card shadow-lift">
               <img
                 src={rahul}
-                alt="Rahul Sharma, entrepreneur and investor"
+                alt="Demo AI character artwork"
                 width={640}
                 height={640}
                 className="aspect-square w-full object-cover object-top"
               />
               <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-navy/85 to-transparent p-5 pt-16">
-                <p className="text-sm font-semibold text-white">Rahul AI</p>
-                <p className="text-xs text-white/70">by Rahul Sharma · Entrepreneur & Investor</p>
+                <p className="text-sm font-semibold text-white">Demo artwork</p>
+                <p className="text-xs text-white/70">Example of a MindLink AI character</p>
               </div>
-            </div>
-
-            <div className="absolute -left-4 top-10 hidden animate-float-soft sm:block">
-              <FloatCard img={priya} name="Priya AI" role="Marketing" />
-            </div>
-            <div
-              className="absolute -right-5 top-28 hidden animate-float-soft sm:block"
-              style={{ animationDelay: "1.4s" }}
-            >
-              <FloatCard img={alex} name="Alex AI" role="Fitness" />
-            </div>
-            <div
-              className="absolute -left-6 bottom-16 hidden animate-float-soft sm:block"
-              style={{ animationDelay: "2.6s" }}
-            >
-              <FloatCard img={sneha} name="Dr. Sneha AI" role="Wellness" />
             </div>
 
             <div className="absolute -bottom-5 right-2 max-w-[15rem] rounded-2xl rounded-br-sm border border-border bg-card p-3.5 shadow-lift sm:right-6">
               <p className="flex items-center gap-2 text-xs font-semibold text-primary-deep">
-                <MessageSquare className="h-3.5 w-3.5" /> Rahul AI
+                <MessageSquare className="h-3.5 w-3.5" /> AI character demo
               </p>
-              <p className="mt-1.5 text-sm">Hi, I'm Rahul's AI. Ask me anything.</p>
+              <p className="mt-1.5 text-sm">Ask a published character anything.</p>
             </div>
           </div>
         </div>
@@ -128,24 +145,29 @@ function Landing() {
           title="Explore AI Characters"
           subtitle="Discover creators, experts and personal brands across different categories."
         />
-        <div className="mt-8 flex flex-wrap gap-2">
-          {categories.map((c) => (
-            <Pill key={c} active={c === category} onClick={() => setCategory(c)}>
-              {c}
-            </Pill>
-          ))}
-        </div>
-
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((c) => (
-            <CharacterCard key={c.id} character={c} />
-          ))}
-        </div>
-        {filtered.length === 0 ? (
+        {charactersLoading ? (
           <p className="mt-10 text-center text-sm text-muted-foreground">
-            No characters in this category yet — try another one.
+            Loading live AI characters...
           </p>
-        ) : null}
+        ) : charactersError ? (
+          <p className="mt-10 text-center text-sm text-destructive">{charactersError}</p>
+        ) : featuredCharacters.length === 0 ? (
+          <div className="mt-10 rounded-2xl border border-dashed border-border py-12 text-center">
+            <p className="font-semibold">No AI characters are live yet.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Be the first to create one.</p>
+            <Link to="/creator/onboarding" className="mt-5 inline-block">
+              <Button size="sm">
+                Create an AI character <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {featuredCharacters.map((character) => (
+              <CharacterCard key={character.id} character={character} />
+            ))}
+          </div>
+        )}
 
         <div className="mt-10 text-center">
           <Link to="/explore">
@@ -183,7 +205,8 @@ function Landing() {
         <div className="grid items-center gap-10 rounded-[2rem] border border-border bg-card p-7 shadow-card sm:p-10 lg:grid-cols-2 lg:p-14">
           <div>
             <h2 className="text-3xl font-bold sm:text-4xl">
-              Turn your expertise into a <span className="text-gradient-brand">24/7 AI character.</span>
+              Turn your expertise into a{" "}
+              <span className="text-gradient-brand">24/7 AI character.</span>
             </h2>
             <p className="mt-4 text-base text-muted-foreground">
               Your audience has questions around the clock. Let your AI character handle everyday
@@ -212,18 +235,6 @@ function Landing() {
         </div>
       </section>
     </SiteLayout>
-  );
-}
-
-function FloatCard({ img, name, role }: { img: string; name: string; role: string }) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-card p-2.5 pr-4 shadow-lift">
-      <img src={img} alt={name} loading="lazy" className="h-10 w-10 rounded-xl object-cover object-top" />
-      <div>
-        <p className="text-xs font-semibold">{name}</p>
-        <p className="text-[11px] text-muted-foreground">{role}</p>
-      </div>
-    </div>
   );
 }
 
