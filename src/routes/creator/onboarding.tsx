@@ -12,11 +12,20 @@ import {
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { SiteLayout } from "@/components/SiteLayout";
 import { Button, Card, Field, TextField } from "@/components/ui/primitives";
-import { onboardingSteps } from "@/data/mock";
+import { VoiceSetupPreview } from "@/components/VoiceSetupPreview";
 import { useAuth } from "@/lib/auth";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/creator/onboarding")({ component: OnboardingPage });
+
+const onboardingSteps = [
+  "Basic Information",
+  "Create Character",
+  "Add Knowledge",
+  "Set Rules",
+  "Voice",
+  "Review & Publish",
+];
 
 type OnboardingForm = {
   fullName: string;
@@ -612,7 +621,7 @@ function OnboardingPage() {
             Build an AI version of your expertise that can help your audience 24/7.
           </p>
         </div>
-        <div className="mx-auto mt-10 grid max-w-3xl grid-cols-5 gap-2">
+        <div className="mx-auto mt-10 grid max-w-3xl grid-cols-6 gap-2">
           {onboardingSteps.map((label, index) => (
             <div key={label} className="text-center">
               <div
@@ -860,7 +869,8 @@ function OnboardingPage() {
               />
             </div>
           ) : null}
-          {step === 4 ? (
+          {step === 4 ? <VoiceSetupPreview characterId={characterId} /> : null}
+          {step === 5 ? (
             <div>
               <h2 className="text-xl font-bold">Review &amp; Publish</h2>
               <div className="mt-6 grid gap-5 sm:grid-cols-2">
